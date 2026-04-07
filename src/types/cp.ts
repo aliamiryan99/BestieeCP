@@ -1,4 +1,4 @@
-export type SupportRole = "Creator" | "Missionary";
+export type SupportRole = "creator" | "owner" | "staff" | "promoter" | "customer";
 
 export type TenantStatus = "alive" | "dead";
 

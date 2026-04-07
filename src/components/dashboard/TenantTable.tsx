@@ -10,7 +10,7 @@ import {
   FiTrash2,
 } from 'react-icons/fi';
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "@backend/api";
 import { TenantFilters } from '@/types/cp';
 
 type TenantRow = {
@@ -31,8 +31,8 @@ type Props = {
 };
 
 export function TenantTable({
-  title = 'لیست مستاجران',
-  description = 'نمایش آخرین مستاجران ثبت شده به همراه وضعیت',
+  title = 'لیست شعبه‌ها',
+  description = 'نمایش آخرین شعبه‌ها ثبت شده به همراه وضعیت',
   filters,
   onEdit,
   onDelete,
@@ -40,11 +40,11 @@ export function TenantTable({
 }: Props) {
   const tenantsQuery = useQuery(api.tenants.tenants.listAll);
   const loadingTenants = tenantsQuery === undefined;
-  
+
   // For pagination safely resolving locally bounds natively tracking constraints cleanly
   const page = filters?.page ?? 1;
   const limit = filters?.limit ?? 10;
-  
+
   const tenants = useMemo(() => {
     if (!tenantsQuery) return [];
     return tenantsQuery.slice((page - 1) * limit, page * limit) as unknown as TenantRow[];
@@ -93,7 +93,7 @@ export function TenantTable({
                   colSpan={4}
                   className="px-5 py-10 text-center text-muted-soft"
                 >
-                  {'مستاجری یافت نشد'}
+                  {'شعبه‌ای یافت نشد'}
                 </td>
               </tr>
             ) : null}
@@ -114,11 +114,10 @@ export function TenantTable({
                 </td>
                 <td className="px-5 py-4">
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      tenant.status === 'alive'
-                        ? 'bg-green-500/15 text-green-300'
-                        : 'bg-rose-500/15 text-rose-200'
-                    }`}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${tenant.status === 'alive'
+                      ? 'bg-green-500/15 text-green-300'
+                      : 'bg-rose-500/15 text-rose-200'
+                      }`}
                   >
                     {tenant.status === 'alive' ? 'فعال' : 'غیرفعال'}
                   </span>
@@ -159,7 +158,7 @@ export function TenantTable({
       <div className="flex items-center justify-between gap-3 border-t border-white/5 px-5 py-4 text-sm text-muted">
         <div>
           صفحه {page} از {totalPages} — مجموع{' '}
-          {tenantsQuery?.length ?? 0} مستاجر
+          {tenantsQuery?.length ?? 0} شعبه
         </div>
         <div className="flex items-center gap-2">
           <button

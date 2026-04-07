@@ -4,7 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { FiBell, FiPlus } from "react-icons/fi";
 import { AddTenantModal } from "@/components/dashboard/AddTenantModal";
-import { useAuthStore } from "@/store/authStore";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
+import { api } from "@backend/api";
 
 const navLinks = [
   { href: "/", label: "داشبورد" },
@@ -14,10 +16,11 @@ const navLinks = [
 
 export function TopNav() {
   const [showAdd, setShowAdd] = useState(false);
-  const { user, logout } = useAuthStore();
+  const { signOut } = useAuthActions();
+  const user = useQuery(api.users.auth.me);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut();
   };
 
   return (
@@ -28,8 +31,8 @@ export function TopNav() {
             CP
           </div>
           <div>
-            <p className="text-lg font-semibold text-white">پنل مدیریت شعب</p>
-            <p className="text-sm text-muted">مدیریت همه سالن‌ها</p>
+            <p className="text-lg font-semibold text-white">پنل مدیریت</p>
+            <p className="text-sm text-muted">شعب، اعضا، کاربران، مالی و دیگر هیچ</p>
           </div>
         </div>
 
@@ -48,12 +51,12 @@ export function TopNav() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowAdd(true)}
-            className="group flex items-center gap-2 rounded-full bg-gradient-to-l from-orange-500 via-amber-400 to-rose-500 px-4 py-2 text-sm font-semibold text-black shadow-lg transition hover:shadow-orange-500/40"
+            className="group flex items-center gap-2 rounded-full bg-gradient-to-l from-orange-500 via-amber-400 to-rose-500 px-4 py-2 text-sm font-semibold text-black shadow-lg transition hover:shadow-orange-500/40 cursor-pointer"
           >
             <FiPlus className="text-lg transition group-hover:scale-110" />
-            <span>افزودن شعبه جدید</span>
+            <span>شعبه جدید</span>
           </button>
-          <button className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-lg text-white/80 transition hover:bg-white/10">
+          <button className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-lg text-white/80 transition hover:bg-white/10 cursor-pointer">
             <FiBell />
             <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-semibold text-white">
               3

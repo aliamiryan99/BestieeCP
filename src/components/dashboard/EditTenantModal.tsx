@@ -1,28 +1,26 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { FiCheck, FiClock, FiHash, FiLink, FiX } from "react-icons/fi";
-import { useTenantStore } from "@/store/tenantStore";
+import { useMutation } from "convex/react";
+import { FiCheck, FiHash, FiX } from "react-icons/fi";
+import { api } from "@backend/api";
 import { useToastStore } from "@/store/toastStore";
-import { Tenant, TenantStatus } from "@/types/cp";
+import { TenantStatus } from "@/types/cp";
 
 type Props = {
   open: boolean;
-  tenant: Tenant | null;
+  tenant: any | null;
   onClose: () => void;
 };
 
 const formatDate = (value?: string) =>
   value ? new Date(value).toISOString().slice(0, 10) : "";
-
 export function EditTenantModal({ open, tenant, onClose }: Props) {
-  const { editTenant } = useTenantStore();
+  const setStatusMutation = useMutation(api.tenants.tenants.setStatus);
   const pushToast = useToastStore((state) => state.push);
 
   const [name, setName] = useState("");
-  const [schema, setSchema] = useState("");
   const [status, setStatus] = useState<TenantStatus>("alive");
-  const [subscriptionExpireAt, setSubscriptionExpireAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -31,9 +29,7 @@ export function EditTenantModal({ open, tenant, onClose }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!tenant) return;
     setName(tenant.name ?? "");
-    setSchema(tenant.schema ?? "");
-    setStatus(tenant.status ?? "alive");
-    setSubscriptionExpireAt(formatDate(tenant.subscriptionExpireAt));
+    setStatus((tenant.status as any) ?? "alive");
   }, [tenant]);
 
   if (!open || !tenant) return null;
@@ -46,31 +42,24 @@ export function EditTenantModal({ open, tenant, onClose }: Props) {
 
     setFormError(null);
     setSaving(true);
-
-    const payload: Parameters<typeof editTenant>[1] = {
-      name: name.trim(),
-      schema: schema.trim() || undefined,
-      status,
-      subscriptionExpireAt: subscriptionExpireAt
-        ? new Date(subscriptionExpireAt).toISOString()
-        : undefined,
-    };
-
-    const result = await editTenant(tenant.id, payload);
-    setSaving(false);
-
-    if (result.ok) {
+    try {
+      await setStatusMutation({
+        tenantId: tenant._id as any,
+        status,
+      });
+      setSaving(false);
       pushToast({
         type: "success",
         title: "ویرایش شد",
-        message: "اطلاعات مستاجر با موفقیت بروزرسانی شد",
+        message: "اطلاعات شعبه با موفقیت بروزرسانی شد",
       });
       onClose();
-    } else {
+    } catch (e: any) {
+      setSaving(false);
       pushToast({
         type: "error",
         title: "خطا",
-        message: result.error ?? "در ذخیره تغییرات خطایی رخ داد",
+        message: e.message ?? "در ذخیره تغییرات خطایی رخ داد",
       });
     }
   };
@@ -80,7 +69,7 @@ export function EditTenantModal({ open, tenant, onClose }: Props) {
       <div className="w-full max-w-xl rounded-3xl bg-slate-900 p-6 shadow-2xl shadow-black/50">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-lg font-semibold text-white">ویرایش مستاجر</p>
+            <p className="text-lg font-semibold text-white">ویرایش شعبه</p>
             <p className="text-sm text-muted-soft">{tenant.id}</p>
           </div>
           <button
@@ -106,33 +95,7 @@ export function EditTenantModal({ open, tenant, onClose }: Props) {
             </div>
           </label>
 
-          <label className="block space-y-1 text-sm">
-            <span className="text-muted">اسکیما / پایگاه داده</span>
-            <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 px-3">
-              <FiLink className="text-muted" />
-              <input
-                value={schema}
-                onChange={(e) => setSchema(e.target.value)}
-                className="w-full bg-transparent px-3 py-3 text-white outline-none"
-                placeholder="schema name"
-              />
-            </div>
-          </label>
-
-          <div className="grid grid-cols-2 gap-4">
-            <label className="block space-y-1 text-sm">
-              <span className="text-muted">تاریخ انقضا</span>
-              <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 px-3">
-                <FiClock className="text-muted" />
-                <input
-                  type="date"
-                  value={subscriptionExpireAt}
-                  onChange={(e) => setSubscriptionExpireAt(e.target.value)}
-                  className="w-full bg-transparent px-3 py-3 text-white outline-none"
-                />
-              </div>
-            </label>
-
+          <div className="grid grid-cols-1 gap-4">
             <label className="block space-y-1 text-sm">
               <span className="text-muted">وضعیت</span>
               <div className="flex items-center gap-2">
@@ -141,11 +104,10 @@ export function EditTenantModal({ open, tenant, onClose }: Props) {
                     key={option}
                     type="button"
                     onClick={() => setStatus(option)}
-                    className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                      status === option
+                    className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${status === option
                         ? "border-orange-400/60 bg-orange-500/10 text-white"
                         : "border-white/10 bg-white/5 text-muted"
-                    }`}
+                      }`}
                   >
                     {option === "alive" ? "فعال" : "غیرفعال"}
                   </button>

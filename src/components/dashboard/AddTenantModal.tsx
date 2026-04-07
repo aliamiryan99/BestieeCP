@@ -8,7 +8,8 @@ import {
   FiLink,
   FiX,
 } from 'react-icons/fi';
-import { useTenantStore } from '@/store/tenantStore';
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@backend/api";
 
 type Props = {
   open: boolean;
@@ -16,8 +17,8 @@ type Props = {
 };
 
 export function AddTenantModal({ open, onClose }: Props) {
-  const { addTenant } = useTenantStore();
-  const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'nobiro.ir';
+  const defaultMain = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'nobiro.ir';
+  const createTenant = useMutation(api.tenants.tenants.create);
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
   const [domainType, setDomainType] = useState<'subdomain' | 'custom'>(
@@ -30,7 +31,7 @@ export function AddTenantModal({ open, onClose }: Props) {
 
   const validations = useMemo(() => {
     const errors: string[] = [];
-    if (!name.trim()) errors.push('نام مستاجر الزامی است');
+    if (!name.trim()) errors.push('نام شعبه الزامی است');
     if (!domainType) errors.push('نوع دامنه را مشخص کنید');
     if (domainType === 'subdomain' && !/^[a-z]+$/.test(name.trim())) {
       errors.push('نام زیر دامنه باید فقط با حروف کوچک انگلیسی باشد');
@@ -56,15 +57,16 @@ export function AddTenantModal({ open, onClose }: Props) {
     setSubmitting(true);
     const payload = {
       name: name.trim(),
-      domainType,
-      domainAddress: domainType === 'custom' ? domainAddress.trim() : undefined,
-      title: title.trim() || undefined,
+      type: "barbers" as const,
+      subdomain: domainType === 'subdomain' ? name.trim() : "",
+      mainDomain: defaultMain,
+      title: title.trim() || name.trim(),
     };
-    const result = await addTenant(payload);
-    setSubmitting(false);
 
-    if (result.ok) {
-      setToast({ type: 'success', message: 'مستاجر جدید با موفقیت ایجاد شد' });
+    try {
+      await createTenant(payload);
+      setSubmitting(false);
+      setToast({ type: 'success', message: 'شعبه جدید با موفقیت ایجاد شد' });
       setName('');
       setTitle('');
       setDomainAddress('');
@@ -72,10 +74,11 @@ export function AddTenantModal({ open, onClose }: Props) {
       setTimeout(() => {
         onClose();
       }, 700);
-    } else {
+    } catch (e: any) {
+      setSubmitting(false);
       setToast({
         type: 'error',
-        message: result.error ?? 'خطا در ایجاد مستاجر',
+        message: e.message ?? 'خطا در ایجاد شعبه',
       });
     }
   };
@@ -87,7 +90,7 @@ export function AddTenantModal({ open, onClose }: Props) {
       <div className="w-full max-w-lg rounded-3xl bg-slate-900 p-6 shadow-2xl shadow-black/50">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-lg font-semibold text-white">افزودن مستاجر جدید</p>
+            <p className="text-lg font-semibold text-white">افزودن شعبه جدید</p>
             <p className="text-sm text-muted-soft">
               زیر دامنه یا دامنه اختصاصی را وارد کنید
             </p>
@@ -103,7 +106,7 @@ export function AddTenantModal({ open, onClose }: Props) {
 
         <div className="space-y-4">
           <label className="block space-y-1 text-sm">
-            <span className="text-muted">نام مستاجر (زیر دامنه)</span>
+            <span className="text-muted">نام شعبه (زیر دامنه)</span>
             <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 px-3">
               <FiLink className="text-muted" />
               <input
@@ -112,7 +115,7 @@ export function AddTenantModal({ open, onClose }: Props) {
                 className="w-full bg-transparent px-3 py-3 text-white outline-none"
                 placeholder="مثال: fadecity"
               />
-              <span className="text-xs text-muted-soft">.{baseDomain}</span>
+              <span className="text-xs text-muted-soft">.{defaultMain}</span>
             </div>
           </label>
 
@@ -129,22 +132,20 @@ export function AddTenantModal({ open, onClose }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setDomainType('subdomain')}
-              className={`flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left transition ${
-                domainType === 'subdomain'
+              className={`flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left transition ${domainType === 'subdomain'
                   ? 'border-orange-400/60 bg-orange-500/10 text-white'
                   : 'border-white/10 bg-white/5 text-muted'
-              }`}
+                }`}
             >
               <span className="text-sm font-semibold">زیر دامنه</span>
               <span className="text-xs text-muted-soft">مانند fadecity.nobiro.ir</span>
             </button>
             <button
               onClick={() => setDomainType('custom')}
-              className={`flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left transition ${
-                domainType === 'custom'
+              className={`flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left transition ${domainType === 'custom'
                   ? 'border-rose-400/60 bg-rose-500/10 text-white'
                   : 'border-white/10 bg-white/5 text-muted'
-              }`}
+                }`}
             >
               <span className="text-sm font-semibold">دامنه اختصاصی</span>
               <span className="text-xs text-muted-soft">مانند barbers.ir</span>
@@ -186,18 +187,17 @@ export function AddTenantModal({ open, onClose }: Props) {
               disabled={submitting}
               className="flex items-center gap-2 rounded-2xl bg-gradient-to-l from-orange-500 via-amber-400 to-rose-500 px-5 py-3 text-sm font-semibold text-black shadow-lg transition hover:shadow-orange-500/40 disabled:opacity-70"
             >
-              {submitting ? 'در حال ارسال...' : 'ثبت مستاجر'}
+              {submitting ? 'در حال ارسال...' : 'ثبت شعبه'}
               <FiCheck />
             </button>
           </div>
 
           {toast ? (
             <div
-              className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-sm ${
-                toast.type === 'success'
+              className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-sm ${toast.type === 'success'
                   ? 'bg-green-500/15 text-green-200'
                   : 'bg-rose-500/15 text-rose-100'
-              }`}
+                }`}
             >
               {toast.type === 'success' ? '✅' : '⚠️'} {toast.message}
             </div>

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Barbers CP Admin Panel",
+  title: "Bestee CP",
   description: "Admin dashboard panel to manage the barbers",
   icons: [
     {
@@ -37,14 +37,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className={`font-vazir app-shell antialiased`} suppressHydrationWarning>
+      <body className={`font-vazir app-shell antialiased`}>
         <ConvexClientProvider>
           <ToastHost />
           {children}

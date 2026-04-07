@@ -38,7 +38,7 @@ export default function LoginPage() {
         title: 'ورود موفق',
         message: 'در حال انتقال به داشبورد',
       });
-      router.replace('/');
+      // Rely entirely on the useConvexAuth useEffect hook to perform safe navigation
     } catch (error: any) {
       const errMsg = error?.message?.toLowerCase() ?? '';
       let message = 'نام کاربری یا رمز عبور اشتباه است';

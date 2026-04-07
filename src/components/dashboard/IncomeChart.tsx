@@ -10,14 +10,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { useTenantStore } from '@/store/tenantStore';
+
 
 export function IncomeChart() {
-  const { incomeSeries, loadingIncome, fetchIncome } = useTenantStore();
-
-  useEffect(() => {
-    fetchIncome();
-  }, [fetchIncome]);
+  const incomeSeries = [
+    { label: "فروردین", value: 12000000 },
+    { label: "اردیبهشت", value: 15300000 },
+    { label: "خرداد", value: 18400000 },
+    { label: "تیر", value: 21000000 },
+  ];
 
   return (
     <div className="glass-panel flex h-full flex-col rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -29,11 +30,7 @@ export function IncomeChart() {
       </div>
 
       <div className="flex-1">
-        {loadingIncome ? (
-          <div className="flex h-64 items-center justify-center text-muted">
-            در حال بارگذاری داده‌ها...
-          </div>
-        ) : incomeSeries.length === 0 ? (
+        {incomeSeries.length === 0 ? (
           <div className="flex h-64 items-center justify-center text-muted-soft">
             داده‌ای برای نمایش وجود ندارد
           </div>

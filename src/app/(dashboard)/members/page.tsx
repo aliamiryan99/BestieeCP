@@ -10,9 +10,9 @@ import {
   FiUser,
   FiX,
 } from "react-icons/fi";
-import { useAuthStore } from "@/store/authStore";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@backend/api";
 import { useToastStore } from "@/store/toastStore";
-import { useUserStore } from "@/store/userStore";
 import { CPUser, SupportRole } from "@/types/cp";
 
 function AddUserModal({
@@ -22,7 +22,7 @@ function AddUserModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const addUser = useUserStore((state) => state.addUser);
+  const createConvexUser = useMutation(api.users.users.create);
   const pushToast = useToastStore((state) => state.push);
 
   const [form, setForm] = useState<{
@@ -36,7 +36,7 @@ function AddUserModal({
     email: "",
     phone: "",
     password: "",
-    role: "Missionary",
+    role: "creator" as any,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ function AddUserModal({
         email: "",
         phone: "",
         password: "",
-        role: "Missionary",
+        role: "creator",
       });
       setError(null);
     }
@@ -65,28 +65,28 @@ function AddUserModal({
       return;
     }
     setSaving(true);
-    const result = await addUser({
-      name: form.name.trim(),
-      email: form.email.trim() || undefined,
-      phone: form.phone.trim() || undefined,
-      password: form.password.trim(),
-      role: form.role,
-    });
-    setSaving(false);
-
-    if (result.ok) {
+    try {
+      await createConvexUser({
+        name: form.name.trim(),
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        password: form.password.trim(),
+        role: form.role.toLowerCase() as any,
+      });
+      setSaving(false);
       pushToast({
         type: "success",
         title: "کاربر ایجاد شد",
         message: "کاربر جدید با موفقیت به لیست افزوده شد",
       });
       onClose();
-    } else {
-      setError(result.error ?? "امکان ثبت کاربر وجود ندارد");
+    } catch (e: any) {
+      setSaving(false);
+      setError(e.message ?? "امکان ثبت کاربر وجود ندارد");
       pushToast({
         type: "error",
         title: "خطا",
-        message: result.error ?? "امکان ثبت کاربر وجود ندارد",
+        message: e.message ?? "امکان ثبت کاربر وجود ندارد",
       });
     }
   };
@@ -95,7 +95,7 @@ function AddUserModal({
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur">
       <div className="w-full max-w-lg rounded-3xl bg-slate-900 p-6 shadow-2xl shadow-black/50">
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-lg font-semibold text-white">افزودن کاربر جدید</p>
+          <p className="text-lg font-semibold text-white">عضو جدید</p>
           <button
             onClick={onClose}
             className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-white/70 transition hover:bg-white/10"
@@ -198,10 +198,10 @@ function EditUserModal({
   onClose,
 }: {
   open: boolean;
-  user: CPUser | null;
+  user: any | null;
   onClose: () => void;
 }) {
-  const editUser = useUserStore((state) => state.editUser);
+  const updateConvexUser = useMutation(api.users.users.update);
   const pushToast = useToastStore((state) => state.push);
 
   const [form, setForm] = useState<{
@@ -215,7 +215,7 @@ function EditUserModal({
     email: "",
     phone: "",
     password: "",
-    role: "Missionary",
+    role: "creator" as any,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -227,7 +227,7 @@ function EditUserModal({
         email: user.email ?? "",
         phone: user.phone ?? "",
         password: "",
-        role: user.role ?? "Missionary",
+        role: (user.role ?? "creator") as any,
       });
       setError(null);
     }
@@ -244,27 +244,30 @@ function EditUserModal({
     setSaving(true);
     const payload: Partial<typeof form> = {
       name: form.name.trim(),
-      role: form.role,
+      role: form.role.toLowerCase() as any,
     };
     if (form.email.trim()) payload.email = form.email.trim();
     if (form.phone.trim()) payload.phone = form.phone.trim();
     if (form.password.trim()) payload.password = form.password.trim();
-    const result = await editUser(user.id, payload);
-    setSaving(false);
-
-    if (result.ok) {
+    try {
+      await updateConvexUser({
+        userId: user._id as any,
+        ...payload
+      });
+      setSaving(false);
       pushToast({
         type: "success",
         title: "ویرایش انجام شد",
         message: "کاربر با موفقیت به‌روزرسانی شد",
       });
       onClose();
-    } else {
-      setError(result.error ?? "امکان ویرایش کاربر وجود ندارد");
+    } catch (e: any) {
+      setSaving(false);
+      setError(e.message ?? "امکان ویرایش کاربر وجود ندارد");
       pushToast({
         type: "error",
         title: "خطا",
-        message: result.error ?? "امکان ویرایش کاربر وجود ندارد",
+        message: e.message ?? "امکان ویرایش کاربر وجود ندارد",
       });
     }
   };
@@ -372,78 +375,73 @@ function EditUserModal({
 
 export default function MembersPage() {
   const router = useRouter();
-  const { initialized, role, isCreator } = useAuthStore();
-  const { users, loading, fetchUsers, toggleActive, removeUser } =
-    useUserStore();
+
+  const me = useQuery(api.users.auth.me);
+  const dbUsers = useQuery(api.users.users.list);
+  const updateConvexUser = useMutation(api.users.users.update);
+  const removeConvexUser = useMutation(api.users.users.remove);
+
   const pushToast = useToastStore((state) => state.push);
 
   const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<CPUser | null>(null);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const currentRole = role();
-  const allowed = initialized && isCreator();
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const currentRole = me?.role;
+  const isCreatorMode = currentRole === "creator" || currentRole === "owner";
+  const initialized = me !== undefined;
+
+  const users = dbUsers ?? [];
 
   useEffect(() => {
-    if (initialized && allowed) {
-      fetchUsers({
-        page: 1,
-        limit: 20,
-        sortBy: "createdAt",
-        sortOrder: "DESC",
-      });
-    }
-  }, [allowed, fetchUsers, initialized]);
-
-  useEffect(() => {
-    if (initialized && currentRole === "Missionary") {
+    if (initialized && !isCreatorMode) {
       pushToast({
         type: "error",
         title: "دسترسی محدود",
-        message: "این صفحه تنها برای Creator فعال است",
+        message: "این صفحه تنها برای مدیران مجاز است",
       });
     }
-  }, [currentRole, initialized, pushToast]);
+  }, [currentRole, initialized, isCreatorMode, pushToast]);
 
-  const handleToggleActive = async (user: CPUser) => {
-    setActionLoading(user.id);
-    const result = await toggleActive(user.id);
-    setActionLoading(null);
-
-    if (result.ok) {
+  const handleToggleActive = async (user: any) => {
+    setActionLoading(user._id);
+    try {
+      await updateConvexUser({ userId: user._id, active: !user.active });
       pushToast({
         type: "success",
         title: "به‌روزرسانی وضعیت",
-        message: `کاربر ${user.name} ${user.active ? "غیرفعال شد" : "فعال شد"}`,
+        message: `کاربر ${user.name} ${!user.active ? "فعال شد" : "غیرفعال شد"}`,
       });
-    } else {
+    } catch (e: any) {
       pushToast({
         type: "error",
         title: "خطا",
-        message: result.error ?? "امکان تغییر وضعیت وجود ندارد",
+        message: e.message ?? "امکان تغییر وضعیت وجود ندارد",
       });
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleDelete = async (user: CPUser) => {
-    if (!window.confirm(`آیا از حذف کاربر ${user.name} مطمئن هستید؟`)) {
-      return;
-    }
-    setDeletingId(user.id);
-    const result = await removeUser(user.id);
-    setDeletingId(null);
-    if (result.ok) {
+  const handleDelete = async (user: any) => {
+    if (!window.confirm(`آیا از حذف کاربر ${user.name} مطمئن هستید؟`)) return;
+    setDeletingId(user._id);
+    try {
+      await removeConvexUser({ userId: user._id });
       pushToast({
         type: "success",
         title: "کاربر حذف شد",
-        message: "کاربر از لیست حذف شد",
+        message: "کاربر از سیستم حذف شد"
       });
-    } else {
+    } catch (e: any) {
       pushToast({
         type: "error",
         title: "خطا",
-        message: result.error ?? "امکان حذف کاربر وجود ندارد",
+        message: e.message ?? "امکان حذف کاربر وجود ندارد",
       });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -455,7 +453,7 @@ export default function MembersPage() {
     );
   }
 
-  if (!allowed) {
+  if (!isCreatorMode) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 text-center text-white/80">
@@ -480,7 +478,7 @@ export default function MembersPage() {
       <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-inner shadow-black/20">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-lg font-semibold text-white">کاربران پشتیبانی</p>
+            <p className="text-lg font-semibold text-white">اعضای پشتیبانی</p>
             <p className="text-sm text-muted-soft">
               تنها Creator می‌تواند اعضای جدید اضافه کند؛ لیست کاربران از
               /cp/users خوانده می‌شود.
@@ -491,7 +489,7 @@ export default function MembersPage() {
             className="flex items-center gap-2 rounded-2xl bg-gradient-to-l from-orange-500 via-amber-400 to-rose-500 px-4 py-2 text-sm font-semibold text-black shadow-lg transition hover:shadow-orange-500/40"
           >
             <FiPlus />
-            افزودن کاربر
+            عضو جدید
           </button>
         </div>
       </div>
@@ -511,7 +509,7 @@ export default function MembersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {users.length === 0 && !loading ? (
+            {users.length === 0 && dbUsers !== undefined ? (
               <tr>
                 <td
                   colSpan={6}
@@ -521,11 +519,11 @@ export default function MembersPage() {
                 </td>
               </tr>
             ) : null}
-            {users.map((user: CPUser) => (
-              <tr key={user.id} className="hover:bg-white/5">
+            {users.map((user: any) => (
+              <tr key={user._id} className="hover:bg-white/5">
                 <td className="px-5 py-4">
                   <div className="font-semibold text-white">{user.name}</div>
-                  <div className="text-xs text-muted-soft">#{user.id}</div>
+                  <div className="text-xs text-muted-soft">#{user._id.slice(-6)}</div>
                 </td>
                 <td className="px-5 py-4">
                   <div className="text-sm text-white/80">
@@ -542,11 +540,10 @@ export default function MembersPage() {
                 </td>
                 <td className="px-5 py-4">
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      user.active
-                        ? "bg-green-500/15 text-green-300"
-                        : "bg-rose-500/15 text-rose-200"
-                    }`}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${user.active
+                      ? "bg-green-500/15 text-green-300"
+                      : "bg-rose-500/15 text-rose-200"
+                      }`}
                   >
                     {user.active ? "فعال" : "غیرفعال"}
                   </span>
@@ -567,14 +564,13 @@ export default function MembersPage() {
                     </button>
                     <button
                       onClick={() => handleToggleActive(user)}
-                      disabled={actionLoading === user.id}
-                      className={`flex items-center gap-1 rounded-xl px-3 py-1 text-white/80 transition ${
-                        user.active
-                          ? "border border-emerald-500/40 hover:bg-emerald-500/20"
-                          : "border border-amber-400/40 hover:bg-amber-400/20"
-                      } disabled:opacity-60`}
+                      disabled={actionLoading === user._id}
+                      className={`flex items-center gap-1 rounded-xl px-3 py-1 text-white/80 transition ${user.active
+                        ? "border border-emerald-500/40 hover:bg-emerald-500/20"
+                        : "border border-amber-400/40 hover:bg-amber-400/20"
+                        } disabled:opacity-60`}
                     >
-                      {actionLoading === user.id ? (
+                      {actionLoading === user._id ? (
                         "..."
                       ) : (
                         <>
@@ -584,11 +580,11 @@ export default function MembersPage() {
                     </button>
                     <button
                       onClick={() => handleDelete(user)}
-                      disabled={deletingId === user.id}
+                      disabled={deletingId === user._id}
                       className="flex items-center gap-1 rounded-xl border border-rose-500/40 px-3 py-1 text-rose-100 transition hover:bg-rose-500/20 disabled:opacity-60"
                     >
                       <FiTrash2 />
-                      {deletingId === user.id ? "در حال حذف..." : "حذف"}
+                      {deletingId === user._id ? "در حال حذف..." : "حذف"}
                     </button>
                   </div>
                 </td>

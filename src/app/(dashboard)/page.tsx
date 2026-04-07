@@ -11,7 +11,7 @@ import { api } from "../../../convex/_generated/api";
 export default function Home() {
   const tenants = useQuery(api.tenants.tenants.listAll);
   const loadingMetrics = tenants === undefined;
-  
+
   const totalTenants = tenants?.length ?? 0;
   const aliveTenants = tenants?.filter((t: any) => t.status === "alive").length ?? 0;
   const monthlyIncome = 0;
@@ -28,8 +28,8 @@ export default function Home() {
             داشبورد مرکزی کنترل پنل
           </h1>
           <p className="mt-1 text-sm text-muted-soft">
-            وضعیت آخرین مستاجران و درآمد را در یک نگاه مشاهده کنید. برای افزودن
-            مستاجر جدید، از دکمه بالای صفحه استفاده کنید.
+            وضعیت آخرین شعبه‌ها و درآمد را در یک نگاه مشاهده کنید. برای افزودن
+            شعبه جدید، از دکمه بالای صفحه استفاده کنید.
           </p>
           <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-soft">
             <span className="rounded-full bg-white/10 px-3 py-1">
@@ -43,7 +43,7 @@ export default function Home() {
         <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-4">
           <p className="text-sm font-semibold text-white">آخرین اطلاعیه</p>
           <p className="text-sm text-muted-soft leading-relaxed">
-            یادآوری: قبل از غیرفعال‌سازی یک مستاجر، از لیست تراکنش‌ها خروجی
+            یادآوری: قبل از غیرفعال‌سازی یک شعبه، از لیست تراکنش‌ها خروجی
             بگیرید تا در گزارشات مالی ثبت شود.
           </p>
         </div>
@@ -51,14 +51,14 @@ export default function Home() {
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <KpiCard
-          title="کل مستاجران"
+          title="کل شعبه‌ها"
           value={totalTenants}
           icon={<FiUsers />}
           subtitle="مجموع ثبت شده در سیستم"
           loading={loadingMetrics}
         />
         <KpiCard
-          title="مستاجران فعال"
+          title="شعبه‌ها فعال"
           value={aliveTenants}
           icon={<FiMail />}
           subtitle="دارای وضعیت alive"

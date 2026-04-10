@@ -39,6 +39,20 @@ html {
   background-color: var(--background);
 }
 
+button, 
+[role="button"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+button:disabled,
+[disabled] {
+  cursor: default !important;
+}
+
 body {
   min-height: 100vh;
   background: var(--background-gradient);

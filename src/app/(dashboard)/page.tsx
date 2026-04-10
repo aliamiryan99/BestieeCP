@@ -1,15 +1,74 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@backend/api";
 import { MainStatsCard, MetricGroup, AICreditBar } from "@/components/dashboard/DashboardCards";
-import { FiUsers, FiUser, FiAward, FiStar, FiCpu, FiTrendingUp, FiActivity, FiGlobe } from "react-icons/fi";
+import { FiUsers, FiUser, FiAward, FiStar, FiCpu, FiTrendingUp, FiActivity, FiGlobe, FiX } from "react-icons/fi";
 import Link from "next/link";
 import { Doc } from "@backend/dataModel";
+import { motion, AnimatePresence } from "framer-motion";
+import dynamic from "next/dynamic";
+
+const DashboardCharts = dynamic(
+  () => import("@/components/dashboard/DashboardCharts").then(m => m.DashboardCharts),
+  { ssr: false, loading: () => <div className="h-96 rounded-3xl border border-white/8 bg-white/3 animate-pulse" /> }
+);
+
+function AnnouncementModal({ announcement, onClose }: { announcement: Doc<"announcements"> | null, onClose: () => void }) {
+  if (!announcement) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-900 shadow-2xl p-8 flex flex-col gap-6"
+      >
+        <button 
+          onClick={onClose}
+          className="cursor-pointer absolute top-6 left-6 h-10 w-10 flex items-center justify-center rounded-2xl bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all duration-300"
+        >
+          <FiX className="text-lg" />
+        </button>
+
+        <div className="flex flex-col gap-2 pt-2">
+           <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-400/80">
+            اطلاعیه سیستم
+          </span>
+          <h2 className="text-2xl font-black text-white">{announcement.title}</h2>
+          <div className="flex items-center gap-2 text-xs text-muted-soft">
+            <span>توسط سیستم</span>
+            <span className="h-1 w-1 rounded-full bg-white/20" />
+            <span>منتشر شده در تاریخ {new Date(announcement._creationTime).toLocaleDateString("fa-IR")}</span>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 border-y border-white/5 py-6">
+          <p className="text-white/70 leading-relaxed text-sm whitespace-pre-wrap">
+            {announcement.content}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-end pt-2">
+           <button 
+            onClick={onClose}
+            className="cursor-pointer rounded-2xl bg-gradient-to-l from-orange-500/20 to-amber-500/20 border border-orange-500/30 px-8 py-3 text-sm font-bold text-orange-300 hover:from-orange-500/30 hover:to-amber-500/30 transition-all duration-300"
+           >
+            متوجه شدم
+           </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function Home() {
   const data = useQuery(api.dashboard.getDashboardMetrics);
   const loading = data === undefined;
+  
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Doc<"announcements"> | null>(null);
 
   // Announcements section remains at the top for all
   const announcements = useQuery(api.announcements.list) ?? [];
@@ -30,7 +89,7 @@ export default function Home() {
     <section className="glass-panel flex flex-col gap-4 rounded-3xl border border-white/10 bg-gradient-to-br from-slate-800/80 via-slate-900 to-slate-950 p-6 mb-8">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-white">اطلاعیه‌ها</h2>
-        <Link href="/announcements" className="text-sm text-orange-200/80 hover:text-orange-300 transition-colors">
+        <Link href="/announcements" className="cursor-pointer text-sm text-orange-200/80 hover:text-orange-300 transition-colors">
           مشاهده همه اطلاعیه‌ها
         </Link>
       </div>
@@ -39,7 +98,11 @@ export default function Home() {
           <p className="text-sm text-muted-soft pt-2">هیچ اطلاعیه‌ای وجود ندارد.</p>
         ) : (
           topAnnouncements.map((announcement: Doc<"announcements">) => (
-            <div key={announcement._id} className="group relative z-10 hover:z-50 flex flex-col gap-2 rounded-2xl border border-white/5 bg-white/5 p-4 hover:bg-white/10 transition-colors">
+            <div 
+              key={announcement._id} 
+              onClick={() => setSelectedAnnouncement(announcement)}
+              className="cursor-pointer group relative z-10 hover:z-50 flex flex-col gap-2 rounded-2xl border border-white/5 bg-white/5 p-4 hover:bg-white/10 transition-colors"
+            >
               <p className="text-sm font-semibold text-white">{announcement.title}</p>
               <p className="text-xs text-muted-soft leading-relaxed line-clamp-2">{announcement.content}</p>
               <span className="mt-auto text-[10px] text-muted-soft pt-2">{timeSince(announcement._creationTime)}</span>
@@ -70,6 +133,7 @@ export default function Home() {
       </div>
     );
   }
+
 
   const role = data.role;
   const metrics = data.metrics as any;
@@ -197,6 +261,18 @@ export default function Home() {
             </div>
           </div>
         </MetricGroup>
+
+        {/* ── Analytics Charts ── */}
+        <DashboardCharts />
+
+        <AnimatePresence>
+          {selectedAnnouncement && (
+            <AnnouncementModal 
+              announcement={selectedAnnouncement} 
+              onClose={() => setSelectedAnnouncement(null)} 
+            />
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -273,6 +349,18 @@ export default function Home() {
           ]}
         />
       </MetricGroup>
+
+      {/* ── Analytics Charts ───────────────────────────────── */}
+      <DashboardCharts />
+
+      <AnimatePresence>
+        {selectedAnnouncement && (
+          <AnnouncementModal 
+            announcement={selectedAnnouncement} 
+            onClose={() => setSelectedAnnouncement(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

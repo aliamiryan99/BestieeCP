@@ -15,8 +15,11 @@ import {
   FiUsers,
   FiChevronLeft,
   FiAward,
+  FiUserCheck,
+  FiGrid,
+  FiGlobe,
 } from "react-icons/fi";
-import { AddTenantModal } from "@/components/dashboard/AddTenantModal";
+import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 import { api } from "@backend/api";
@@ -31,7 +34,7 @@ const navLinks = [
 ];
 
 export function TopNav() {
-  const [showAdd, setShowAdd] = useState(false);
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { signOut } = useAuthActions();
   const user = useQuery(api.users.auth.me);
@@ -40,7 +43,10 @@ export function TopNav() {
 
   const dynamicNavLinks = [
     ...navLinks,
-    ...(user?.role === "creator" ? [{ href: "/plans", label: "پلان‌ها", icon: FiAward }] : [])
+    ...(user?.role === "creator" ? [{ href: "/users", label: "کاربران", icon: FiUserCheck }] : []),
+    ...(user?.role === "creator" ? [{ href: "/plans", label: "پلان‌ها", icon: FiAward }] : []),
+    ...(user?.role === "creator" ? [{ href: "/services", label: "سرویس‌ها", icon: FiGrid }] : []),
+    ...(user?.role === "creator" ? [{ href: "/domains", label: "دامنه‌ها", icon: FiGlobe }] : []),
   ];
 
   // Close drawer on route change
@@ -77,11 +83,11 @@ export function TopNav() {
 
         {/* Right Section: Logo & Brand */}
         <div className="flex items-center gap-3">
-          {/* Hamburger — mobile only */}
+          {/* Hamburger — visible until xl breakpoint */}
           <button
             id="mobile-menu-toggle"
             onClick={() => setMobileOpen((v) => !v)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white lg:hidden cursor-pointer"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white xl:hidden cursor-pointer"
             aria-label="منو"
           >
             <AnimatePresence mode="wait" initial={false}>
@@ -109,39 +115,37 @@ export function TopNav() {
             </AnimatePresence>
           </button>
 
-          {/* Logo mark — always show on mobile, hide brand text when hamburger takes space */}
-          <Link href="/" className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/5 border border-white/10 shadow-lg lg:flex lg:h-12 lg:w-12">
-            <Image 
-              src="/BestieeLogo.webp" 
-              alt="Bestiee Logo" 
-              width={48} 
-              height={48} 
+          {/* Logo mark */}
+          <Link href="/" className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/5 border border-white/10 shadow-lg xl:h-12 xl:w-12">
+            <Image
+              src="/BestieeLogo.webp"
+              alt="Bestiee Logo"
+              width={48}
+              height={48}
               className="object-contain p-1.5"
             />
           </Link>
 
           <div className="hidden xs:block">
-            <p className="text-sm font-bold text-white md:text-base lg:text-lg">پنل مدیریت</p>
-            <p className="hidden text-[10px] text-white/50 md:block lg:text-xs">شعب، اعضا، کاربران، مالی و دیگر هیچ</p>
+            <p className="text-sm font-bold text-white md:text-base xl:text-lg">پنل مدیریت</p>
+            <p className="hidden text-[10px] text-white/50 md:block xl:text-xs">شعب، اعضا، کاربران، مالی و دیگر هیچ</p>
           </div>
-
-
         </div>
 
-        {/* Center Section: Navigation (desktop only) */}
-        <nav className="hidden items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 lg:flex">
+        {/* Center Section: Full nav — xl and above only */}
+        <nav className="hidden items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 xl:flex">
           {dynamicNavLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${isActive
+                className={`cursor-pointer flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${isActive
                   ? "bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-white"
                   : "text-white/60 hover:bg-white/10 hover:text-white"
                   }`}
               >
-                <link.icon className="text-base" />
+                <link.icon className="text-base shrink-0" />
                 {link.label}
               </Link>
             );
@@ -152,7 +156,7 @@ export function TopNav() {
         <div className="flex items-center gap-2 md:gap-3">
           {/* New Tenant Button */}
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={() => router.push("/tenants/new")}
             className="flex h-10 items-center gap-2 rounded-2xl bg-white px-3 text-sm font-bold text-slate-900 shadow-lg transition hover:scale-105 active:scale-95 md:h-11 md:px-5 cursor-pointer"
             title="شعبه جدید"
           >
@@ -171,7 +175,7 @@ export function TopNav() {
 
           {/* User Profile & Logout */}
           <div className="flex items-center gap-2 rounded-2xl bg-white/5 p-1 md:gap-3 md:bg-transparent md:p-0">
-            <Link href="/profile" className="hidden flex-col items-end text-right sm:flex hover:opacity-80 transition-opacity">
+            <Link href="/profile" className="cursor-pointer hidden flex-col items-end text-right sm:flex hover:opacity-80 transition-opacity">
               <p className="max-w-[100px] truncate text-xs font-bold text-white md:max-w-[150px] md:text-sm">
                 {user?.name ?? "ورود نکرده"}
               </p>
@@ -180,7 +184,7 @@ export function TopNav() {
               </p>
             </Link>
 
-            <Link href="/profile" className="group relative">
+            <Link href="/profile" className="group relative cursor-pointer">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-lg text-white shadow-lg transition hover:ring-2 hover:ring-amber-500/50 md:h-11 md:w-11">
                 {user?.profilePictureUrl ? (
                   <img src={user.profilePictureUrl} alt="Profile" className="h-full w-full object-cover" />
@@ -201,7 +205,7 @@ export function TopNav() {
         </div>
       </header>
 
-      {/* ── Mobile Backdrop ── */}
+      {/* ── Backdrop — covers up to xl ── */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -210,12 +214,12 @@ export function TopNav() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
-            className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm xl:hidden"
           />
         )}
       </AnimatePresence>
 
-      {/* ── Mobile Drawer ── */}
+      {/* ── Drawer — covers up to xl ── */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -225,7 +229,7 @@ export function TopNav() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 340, damping: 30 }}
-            className="fixed top-[5.5rem] right-4 left-4 z-30 overflow-hidden rounded-3xl border border-white/10 bg-slate-900/95 shadow-2xl backdrop-blur-xl lg:hidden"
+            className="fixed top-[5.5rem] right-4 left-4 z-30 overflow-hidden rounded-3xl border border-white/10 bg-slate-900/95 shadow-2xl backdrop-blur-xl xl:hidden"
           >
             {/* User info strip */}
             <div className="flex items-center gap-4 border-b border-white/8 px-5 py-4">
@@ -242,7 +246,7 @@ export function TopNav() {
               </div>
               <Link
                 href="/profile"
-                className="mr-auto flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/60 transition hover:bg-white/10 hover:text-white shrink-0"
+                className="cursor-pointer mr-auto flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/60 transition hover:bg-white/10 hover:text-white shrink-0"
                 onClick={() => setMobileOpen(false)}
               >
                 پروفایل
@@ -250,8 +254,8 @@ export function TopNav() {
               </Link>
             </div>
 
-            {/* Nav links */}
-            <nav className="flex flex-col gap-1 p-3">
+            {/* Nav links — 2-column grid on tablet for compact layout */}
+            <nav className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-3">
               {dynamicNavLinks.map((link, i) => {
                 const isActive = pathname === link.href;
                 return (
@@ -259,17 +263,17 @@ export function TopNav() {
                     key={link.href}
                     initial={{ opacity: 0, x: 16 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.05 + i * 0.06 }}
+                    transition={{ delay: 0.04 + i * 0.05 }}
                   >
                     <Link
                       href={link.href}
-                      className={`flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-bold transition ${isActive
+                      className={`cursor-pointer flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-bold transition ${isActive
                         ? "bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-white border border-orange-500/20"
                         : "text-white/60 hover:bg-white/8 hover:text-white border border-transparent"
                         }`}
                     >
                       <span className="flex items-center gap-3">
-                        <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-base transition ${isActive ? "bg-gradient-to-br from-orange-500/30 to-rose-500/30 text-orange-300" : "bg-white/5 text-white/50"}`}>
+                        <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-base transition ${isActive ? "bg-gradient-to-br from-orange-500/30 to-rose-500/30 text-orange-300" : "bg-white/5 text-white/50"}`}>
                           <link.icon />
                         </span>
                         {link.label}
@@ -298,8 +302,6 @@ export function TopNav() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <AddTenantModal open={showAdd} onClose={() => setShowAdd(false)} />
     </>
   );
 }

@@ -27,6 +27,7 @@ import { api } from "@backend/api";
 import { translateRole } from "@/lib/translations";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export function TopNav() {
   const router = useRouter();
@@ -161,10 +162,7 @@ export function TopNav() {
           </button>
 
           {/* Notifications */}
-          <button className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-lg text-white/70 transition hover:bg-white/10 md:h-11 md:w-11 cursor-pointer">
-            <FiBell />
-            <span className="absolute top-2 left-2 flex h-2 w-2 rounded-full bg-rose-500 ring-2 ring-slate-900" />
-          </button>
+          <NotificationBell />
 
           {/* Divider */}
           <div className="mx-1 hidden h-8 w-px bg-white/10 sm:block" />

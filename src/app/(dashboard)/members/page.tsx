@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FiCheck,
   FiEdit3,
@@ -854,6 +854,7 @@ function DeleteConfirmModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MembersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const pushToast = useToastStore((state) => state.push);
   const me = useQuery(api.users.auth.me);
   const cities = useQuery(api.cities.listActive) as City[] | undefined;
@@ -875,6 +876,10 @@ export default function MembersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "creator" | "promoter">("all");
+  const [sinceFilter, setSinceFilter] = useState<number | null>(() => {
+    const s = searchParams.get("since");
+    return s ? Number(s) : null;
+  });
 
   const initialized = me !== undefined;
   const hasAccess = me?.role === "creator" || me?.role === "promoter";
@@ -966,8 +971,11 @@ export default function MembersPage() {
   const totalActive = users.filter((u) => u.active).length;
   const totalBanned = users.filter((u) => u.ban).length;
 
-  const filtered =
+  let filtered =
     filter === "all" ? users : users.filter((u) => u.role === filter);
+  if (sinceFilter) {
+    filtered = filtered.filter((u) => u._creationTime > sinceFilter);
+  }
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -1075,6 +1083,23 @@ export default function MembersPage() {
             <FiAlertTriangle />
             {totalBanned} حساب مسدود
           </span>
+        )}
+        
+        {sinceFilter && (
+          <div className="mr-auto flex items-center gap-2">
+            <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-400 font-bold">
+              موارد جدید
+            </span>
+            <button
+              onClick={() => {
+                setSinceFilter(null);
+                if (searchParams.toString()) router.replace("/members");
+              }}
+              className="cursor-pointer text-xs text-orange-400/70 hover:text-orange-300 transition"
+            >
+              پاکسازی فیلتر
+            </button>
+          </div>
         )}
       </div>
 

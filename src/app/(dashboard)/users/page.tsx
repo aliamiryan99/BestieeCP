@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FiSearch,
   FiX,
@@ -363,6 +363,7 @@ function RowSkeleton() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function UsersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const me = useQuery(api.users.auth.me);
   const cities = useQuery(api.cities.listActive) as City[] | undefined;
   const rawUsers = useQuery(api.users.users.listAllUsers);
@@ -381,6 +382,10 @@ export default function UsersPage() {
   const [genderFilter, setGenderFilter] = useState<"all" | "male" | "female">("all");
   const [selectedUser, setSelectedUser] = useState<EnrichedUser | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [sinceFilter, setSinceFilter] = useState<number | null>(() => {
+    const s = searchParams.get("since");
+    return s ? Number(s) : null;
+  });
 
   const users = rawUsers as EnrichedUser[] | undefined;
 
@@ -404,9 +409,10 @@ export default function UsersPage() {
     if (statusFilter === "inactive") list = list.filter(u => !u.active);
     if (statusFilter === "banned") list = list.filter(u => u.ban);
     if (genderFilter !== "all") list = list.filter(u => u.gender === genderFilter);
+    if (sinceFilter) list = list.filter(u => u._creationTime > sinceFilter);
 
     return list;
-  }, [users, search, roleFilter, statusFilter, genderFilter, cityMap]);
+  }, [users, search, roleFilter, statusFilter, genderFilter, cityMap, sinceFilter]);
 
   // ── Summary Stats ─────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -554,15 +560,23 @@ export default function UsersPage() {
                 {users && filtered.length !== users.length && (
                   <span className="text-white/25"> از {users.length}</span>
                 )}
-              </p>
-              {(search || roleFilter !== "all" || statusFilter !== "all" || genderFilter !== "all") && (
-                <button
-                  onClick={() => { setSearch(""); setRoleFilter("all"); setStatusFilter("all"); setGenderFilter("all"); }}
-                  className="cursor-pointer text-xs text-orange-400/70 hover:text-orange-300 transition"
-                >
-                  پاکسازی فیلترها
-                </button>
+              {sinceFilter && (
+                <span className="mr-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-400 font-bold">
+                  موارد جدید
+                </span>
               )}
+            </p>
+            {(search || roleFilter !== "all" || statusFilter !== "all" || genderFilter !== "all" || sinceFilter) && (
+              <button
+                onClick={() => {
+                  setSearch(""); setRoleFilter("all"); setStatusFilter("all"); setGenderFilter("all"); setSinceFilter(null);
+                  if (searchParams.toString()) router.replace("/users");
+                }}
+                className="cursor-pointer text-xs text-orange-400/70 hover:text-orange-300 transition"
+              >
+                پاکسازی فیلترها
+              </button>
+            )}
             </div>
           )}
 
@@ -580,7 +594,13 @@ export default function UsersPage() {
                 <FiUserX className="text-2xl text-white/30" />
               </div>
               <p className="text-white/40 text-sm">کاربری با این مشخصات یافت نشد.</p>
-              <button onClick={() => { setSearch(""); setRoleFilter("all"); setStatusFilter("all"); setGenderFilter("all"); }} className="cursor-pointer text-xs text-orange-400/60 hover:text-orange-300 transition">
+              <button 
+                onClick={() => { 
+                  setSearch(""); setRoleFilter("all"); setStatusFilter("all"); setGenderFilter("all"); setSinceFilter(null);
+                  if (searchParams.toString()) router.replace("/users");
+                }} 
+                className="cursor-pointer text-xs text-orange-400/60 hover:text-orange-300 transition"
+              >
                 پاکسازی فیلترها
               </button>
             </div>

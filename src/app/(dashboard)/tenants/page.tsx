@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FiSearch,
   FiX,
@@ -116,7 +116,7 @@ function DeleteConfirmModal({ tenant, onConfirm, onCancel, loading }: {
 }
 
 // ─── Tenant Card ──────────────────────────────────────────────────────────────
-function TenantCard({ tenant, onDelete }: { tenant: EnrichedTenant; onDelete: (t: EnrichedTenant) => void }) {
+function TenantCard({ tenant, onDelete, canDelete }: { tenant: EnrichedTenant; onDelete: (t: EnrichedTenant) => void; canDelete: boolean }) {
   const typeConfig = TYPE_CONFIG[tenant.type] || TYPE_CONFIG.barbers;
   const planColor = PLAN_COLORS[tenant.planKey] || PLAN_COLORS.free;
   const hostname = tenant.domains?.[0]?.hostname ?? "—";
@@ -243,13 +243,15 @@ function TenantCard({ tenant, onDelete }: { tenant: EnrichedTenant; onDelete: (t
             <FiEdit2 className="text-[10px]" />
             ویرایش
           </button>
-          <button
-            onClick={() => onDelete(tenant)}
-            className="cursor-pointer flex items-center gap-1 rounded-xl border border-rose-800/40 px-2.5 py-1 text-[11px] text-rose-400 transition hover:bg-rose-900/20"
-          >
-            <FiTrash2 className="text-[10px]" />
-            حذف
-          </button>
+          {canDelete && (
+            <button
+              onClick={() => onDelete(tenant)}
+              className="cursor-pointer flex items-center gap-1 rounded-xl border border-rose-800/40 px-2.5 py-1 text-[11px] text-rose-400 transition hover:bg-rose-900/20"
+            >
+              <FiTrash2 className="text-[10px]" />
+              حذف
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -294,9 +296,9 @@ function CardSkeleton() {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function TenantsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const me = useQuery(api.users.auth.me);
   const rawTenants = useQuery(api.tenants.tenants.listAll);
   const removeTenant = useMutation(api.tenants.tenants.remove);
@@ -307,6 +309,10 @@ export default function TenantsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [planFilter, setPlanFilter] = useState<"all" | "free" | "pro" | "ultra">("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [sinceFilter, setSinceFilter] = useState<number | null>(() => {
+    const s = searchParams.get("since");
+    return s ? Number(s) : null;
+  });
   const [deleteTarget, setDeleteTarget] = useState<EnrichedTenant | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -332,9 +338,10 @@ export default function TenantsPage() {
     if (statusFilter === "active") list = list.filter(t => t.active);
     if (statusFilter === "inactive") list = list.filter(t => !t.active);
     if (planFilter !== "all") list = list.filter(t => t.planKey === planFilter);
+    if (sinceFilter) list = list.filter(t => t._creationTime > sinceFilter);
 
     return list;
-  }, [tenants, search, typeFilter, statusFilter, planFilter]);
+  }, [tenants, search, typeFilter, statusFilter, planFilter, sinceFilter]);
 
   // Stats
   const stats = useMemo(() => {
@@ -493,10 +500,18 @@ export default function TenantsPage() {
             {tenants && filtered.length !== tenants.length && (
               <span className="text-white/25"> از {tenants.length}</span>
             )}
+            {sinceFilter && (
+              <span className="mr-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-400 font-bold">
+                موارد جدید
+              </span>
+            )}
           </p>
-          {(search || typeFilter !== "all" || statusFilter !== "all" || planFilter !== "all") && (
+          {(search || typeFilter !== "all" || statusFilter !== "all" || planFilter !== "all" || sinceFilter) && (
             <button
-              onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setPlanFilter("all"); }}
+              onClick={() => { 
+                setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setPlanFilter("all"); setSinceFilter(null);
+                if (searchParams.toString()) router.replace("/tenants");
+              }}
               className="cursor-pointer text-xs text-orange-400/70 hover:text-orange-300 transition"
             >
               پاکسازی فیلترها
@@ -517,7 +532,13 @@ export default function TenantsPage() {
             <FiScissors className="text-2xl text-white/30" />
           </div>
           <p className="text-white/40 text-sm">شعبه‌ای با این مشخصات یافت نشد.</p>
-          <button onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setPlanFilter("all"); }} className="cursor-pointer text-xs text-orange-400/60 hover:text-orange-300 transition">
+          <button 
+            onClick={() => { 
+              setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setPlanFilter("all"); setSinceFilter(null);
+              if (searchParams.toString()) router.replace("/tenants");
+            }} 
+            className="cursor-pointer text-xs text-orange-400/60 hover:text-orange-300 transition"
+          >
             پاکسازی فیلترها
           </button>
         </div>
@@ -526,7 +547,12 @@ export default function TenantsPage() {
       {!loading && filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((tenant) => (
-            <TenantCard key={tenant._id} tenant={tenant} onDelete={setDeleteTarget} />
+            <TenantCard 
+              key={tenant._id} 
+              tenant={tenant} 
+              onDelete={setDeleteTarget} 
+              canDelete={me?.role === "creator"}
+            />
           ))}
         </div>
       )}

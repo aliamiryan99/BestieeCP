@@ -88,7 +88,7 @@ function AggregateRow({
 }) {
   if (count === 0) return null;
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 transition hover:bg-white/8">
+    <div className="flex items-center gap-3 rounded-2xl border border-orange-500/20 bg-gradient-to-r from-orange-500/10 to-transparent px-4 py-3 transition hover:bg-orange-500/15 shadow-[0_4px_12px_-2px_rgba(249,115,22,0.08)]">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/20 text-orange-300">
         {icon}
       </div>
@@ -136,7 +136,7 @@ function EventRow({
       initial={{ opacity: 0, x: 16 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 py-3"
+      className="flex items-start gap-3 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-transparent px-4 py-3 transition hover:bg-purple-500/15 shadow-[0_4px_12px_-2px_rgba(168,85,247,0.08)]"
     >
       {/* Avatar */}
       <div
@@ -231,8 +231,10 @@ export function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         className={`cursor-pointer relative flex h-10 w-10 items-center justify-center rounded-2xl border transition md:h-11 md:w-11 ${
           open
-            ? "border-orange-500/30 bg-orange-500/10 text-orange-300"
-            : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+            ? "border-orange-500/40 bg-orange-500/15 text-orange-400 shadow-[0_0_20px_-5px_rgba(249,115,22,0.4)]"
+            : (hasUnread
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-500/90 shadow-[0_0_15px_-5px_rgba(245,158,11,0.5)] hover:border-amber-500/60 hover:bg-amber-500/15"
+              : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white")
         }`}
         aria-label="اعلان‌ها"
       >
@@ -279,7 +281,7 @@ export function NotificationBell() {
                 </div>
                 <p className="text-sm font-black text-white">اعلان‌ها</p>
                 {hasUnread && (
-                  <span className="flex items-center justify-center rounded-full bg-rose-500/15 border border-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-400">
+                  <span className="flex items-center justify-center rounded-full bg-rose-500/20 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-black text-rose-400 shadow-[0_0_10px_-2px_rgba(244,63,94,0.3)]">
                     {totalCount} جدید
                   </span>
                 )}

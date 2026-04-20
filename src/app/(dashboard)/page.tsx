@@ -102,11 +102,21 @@ export default function Home() {
             <div
               key={announcement._id}
               onClick={() => setSelectedAnnouncement(announcement)}
-              className="cursor-pointer group relative z-10 hover:z-50 flex flex-col gap-2 rounded-2xl border border-white/5 bg-white/5 p-4 hover:bg-white/10 transition-colors"
+              className="cursor-pointer group relative flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/5 p-6 transition-all duration-300 hover:bg-white/8 hover:border-orange-500/40 hover:translate-y-[-2px] hover:shadow-[0_20px_40px_-20px_rgba(249,115,22,0.3)]"
             >
-              <p className="text-sm font-semibold text-white">{announcement.title}</p>
-              <p className="text-xs text-muted-soft leading-relaxed line-clamp-2">{announcement.content}</p>
-              <span className="mt-auto text-[10px] text-muted-soft pt-2">{timeSince(announcement._creationTime)}</span>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-sm font-black text-white group-hover:text-orange-300 transition-colors">{announcement.title}</p>
+                <p className="text-xs text-white/50 leading-relaxed line-clamp-2 font-medium">{announcement.content}</p>
+              </div>
+              <div className="mt-auto pt-3 border-t border-white/5 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-white/30 flex items-center gap-1.5 uppercase tracking-wider">
+                  <FiActivity className="text-orange-400/50" />
+                  {timeSince(announcement._creationTime)}
+                </span>
+                <span className="text-[10px] font-black text-orange-400/0 group-hover:text-orange-400/80 transition-all duration-300">
+                  مطالعه &larr;
+                </span>
+              </div>
             </div>
           ))
         )}

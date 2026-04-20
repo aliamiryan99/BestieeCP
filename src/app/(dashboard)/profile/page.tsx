@@ -23,7 +23,9 @@ import {
   FiX,
   FiLoader,
   FiEdit3,
+  FiRefreshCw,
 } from "react-icons/fi";
+
 import { sanitizeError } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import LevelCircle from "@/components/profile/LevelCircle";
@@ -38,6 +40,11 @@ const LocationPicker = dynamic(() => import("@/components/profile/LocationPicker
     </div>
   ),
 });
+
+const PersianDatePicker = dynamic(() => import("@/components/common/PersianDatePicker"), {
+  ssr: false,
+});
+
 
 export default function ProfilePage() {
   const user = useQuery(api.users.auth.me);
@@ -69,8 +76,10 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [fetchingAddress, setFetchingAddress] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
 
   // Populate form when user data loads
   useEffect(() => {
@@ -170,6 +179,41 @@ export default function ProfilePage() {
       showToast("خطا در ذخیره: " + sanitizeError(err), "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFetchAddress = async () => {
+    if (!location) {
+      showToast("ابتدا یک موقعیت روی نقشه انتخاب کنید.", "error");
+      return;
+    }
+
+    setFetchingAddress(true);
+    try {
+      const { lat, lng } = location;
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=fa`
+      );
+      const data = await response.json();
+
+      if (data && data.address) {
+        const addr = data.address;
+        const parts = [];
+
+        // Build address hierarchy
+        if (addr.country) parts.push(addr.country);
+        if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+        if (addr.suburb || addr.neighbourhood || addr.district) parts.push(addr.suburb || addr.neighbourhood || addr.district);
+        if (addr.road) parts.push(addr.road);
+
+        const formattedAddress = parts.join(" ، ");
+        setAddress(formattedAddress || data.display_name);
+      }
+    } catch (err: any) {
+
+      showToast("خطا در دریافت آدرس از نقشه!", "error");
+    } finally {
+      setFetchingAddress(false);
     }
   };
 
@@ -358,13 +402,12 @@ export default function ProfilePage() {
               placeholder="example@email.com"
               dir="ltr"
             />
-            <InputField
+            <PersianDatePicker 
               label="تاریخ تولد"
-              icon={<FiCalendar />}
+              icon={<FiCalendar className="text-xs" />}
               value={birthdate}
               onChange={setBirthdate}
-              placeholder="YYYY-MM-DD"
-              dir="ltr"
+              placeholder="۱۴۰۰/۰۱/۰۱"
             />
             <InputField
               label="کد ملی"
@@ -437,10 +480,21 @@ export default function ProfilePage() {
               dir="ltr"
             />
             <div>
-              <label className="mb-2 block text-xs font-bold text-white/50">
-                <FiMapPin className="inline ml-1" />
-                آدرس
-              </label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-xs font-bold text-white/50">
+                  <FiMapPin className="inline ml-1" />
+                  آدرس
+                </label>
+                <button
+                  type="button"
+                  onClick={handleFetchAddress}
+                  disabled={fetchingAddress || !location}
+                  className="text-[10px] font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {fetchingAddress ? <FiRefreshCw className="animate-spin text-xs" /> : <FiMapPin className="text-xs" />}
+                  دریافت از نقشه
+                </button>
+              </div>
               <textarea
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}

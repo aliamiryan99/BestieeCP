@@ -161,9 +161,9 @@ export default function LocationPicker({
           scrollWheelZoom={true}
           style={{ height: "350px", width: "100%" }}
           className="z-0"
+          attributionControl={false}
         >
           <TileLayer
-            attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <MapClickHandler onClick={handleMapClick} />

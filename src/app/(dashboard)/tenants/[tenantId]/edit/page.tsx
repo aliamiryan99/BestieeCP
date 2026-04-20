@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
 import { useToastStore } from "@/store/toastStore";
@@ -44,7 +44,7 @@ const LocationPicker = dynamic(() => import("@/components/profile/LocationPicker
 const STEPS = [
   { key: "basic", label: "اطلاعات اصلی", icon: <FiHash /> },
   { key: "content", label: "محتوای سایت", icon: <FiLayout /> },
-  { key: "location", label: "موقعیت و مجوز", icon: <FiMapPin /> },
+  { key: "location", label: "محتوای ضروری", icon: <FiMapPin /> },
   { key: "settings", label: "تنظیمات و شبکه‌ها", icon: <FiSettings /> },
   { key: "members", label: "مدیران و پرسنل", icon: <FiUsers /> },
 ] as const;
@@ -74,8 +74,9 @@ const EMPTY_NEW_USER = {
   cityId: "",
 };
 
+type SiteImageField = "certificate" | "interior" | "outside" | "team";
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
-import { useParams } from "next/navigation";
 export default function EditTenantPage() {
   const router = useRouter();
   const pushToast = useToastStore((state) => state.push);
@@ -112,6 +113,15 @@ export default function EditTenantPage() {
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certificatePreview, setCertificatePreview] = useState<string | null>(null);
   const certInputRef = useRef<HTMLInputElement>(null);
+  const [interiorFile, setInteriorFile] = useState<File | null>(null);
+  const [interiorPreview, setInteriorPreview] = useState<string | null>(null);
+  const interiorInputRef = useRef<HTMLInputElement>(null);
+  const [outsideFile, setOutsideFile] = useState<File | null>(null);
+  const [outsidePreview, setOutsidePreview] = useState<string | null>(null);
+  const outsideInputRef = useRef<HTMLInputElement>(null);
+  const [teamFile, setTeamFile] = useState<File | null>(null);
+  const [teamPreview, setTeamPreview] = useState<string | null>(null);
+  const teamInputRef = useRef<HTMLInputElement>(null);
 
   const [telegram, setTelegram] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -147,6 +157,15 @@ export default function EditTenantPage() {
       }
       if (initialData.siteContent?.certificateImageUrl) {
         setCertificatePreview(initialData.siteContent.certificateImageUrl);
+      }
+      if (initialData.siteContent?.interiorImageUrl) {
+        setInteriorPreview(initialData.siteContent.interiorImageUrl);
+      }
+      if (initialData.siteContent?.outsideImageUrl) {
+        setOutsidePreview(initialData.siteContent.outsideImageUrl);
+      }
+      if (initialData.siteContent?.teamImageUrl) {
+        setTeamPreview(initialData.siteContent.teamImageUrl);
       }
       setTelegram(initialData.siteContent?.socialLinks?.telegram || "");
       setInstagram(initialData.siteContent?.socialLinks?.instagram || "");
@@ -237,24 +256,36 @@ export default function EditTenantPage() {
     setCurrentStep((s) => Math.max(s - 1, 0));
   };
 
-  // Certificate upload handler
-  const handleCertificateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const createImageChangeHandler = useCallback((
+    field: SiteImageField,
+    setFile: React.Dispatch<React.SetStateAction<File | null>>,
+    setPreview: React.Dispatch<React.SetStateAction<string | null>>,
+  ) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setErrors((prev) => ({ ...prev, certificate: "فقط فایل تصویری مجاز است" }));
+      setErrors((prev) => ({ ...prev, [field]: "فقط فایل تصویری مجاز است" }));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, certificate: "حداکثر ۵ مگابایت" }));
+      setErrors((prev) => ({ ...prev, [field]: "حداکثر ۵ مگابایت" }));
       return;
     }
-    setCertificateFile(file);
-    setErrors((prev) => { const { certificate, ...rest } = prev; return rest; });
+    setFile(file);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
     const reader = new FileReader();
-    reader.onload = (ev) => setCertificatePreview(ev.target?.result as string);
+    reader.onload = (ev) => setPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
   }, []);
+
+  const handleCertificateChange = createImageChangeHandler("certificate", setCertificateFile, setCertificatePreview);
+  const handleInteriorChange = createImageChangeHandler("interior", setInteriorFile, setInteriorPreview);
+  const handleOutsideChange = createImageChangeHandler("outside", setOutsideFile, setOutsidePreview);
+  const handleTeamChange = createImageChangeHandler("team", setTeamFile, setTeamPreview);
 
   // Submit
   const handleSubmit = async () => {
@@ -272,17 +303,24 @@ export default function EditTenantPage() {
 
     setSubmitting(true);
     try {
-      let certificateImageId: string | undefined;
-      if (certificateFile) {
+      const uploadImage = async (file: File | null) => {
+        if (!file) return undefined;
         const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
-          headers: { "Content-Type": certificateFile.type },
-          body: certificateFile,
+          headers: { "Content-Type": file.type },
+          body: file,
         });
         const { storageId } = await result.json();
-        certificateImageId = storageId;
-      }
+        return storageId as string;
+      };
+
+      const [certificateImageId, interiorImageId, outsideImageId, teamImageId] = await Promise.all([
+        certificateFile ? uploadImage(certificateFile) : Promise.resolve(undefined),
+        interiorFile ? uploadImage(interiorFile) : Promise.resolve(undefined),
+        outsideFile ? uploadImage(outsideFile) : Promise.resolve(undefined),
+        teamFile ? uploadImage(teamFile) : Promise.resolve(undefined),
+      ]);
 
       const mapMember = (m: MemberState) => ({
         userId: m.type === "existing" ? (m.userId as any) : undefined,
@@ -306,6 +344,9 @@ export default function EditTenantPage() {
         heroSubTitle: heroSubTitle.trim() || undefined,
         aboutUsText: aboutUsText.trim() || undefined,
         certificateImageId,
+        interiorImageId,
+        outsideImageId,
+        teamImageId,
         socialLinks: {
           telegram: telegram.trim() || undefined,
           instagram: instagram.trim() || undefined,
@@ -619,9 +660,21 @@ export default function EditTenantPage() {
             </div>
           )}
 
-          {/* ── Step 2: Location & Certificate ──────────── */}
+          {/* ── Step 2: Essential Content ──────────── */}
           {currentStep === 2 && (
             <div className="flex flex-col gap-6">
+              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
+                <div className="mb-2 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500/20 to-rose-500/20 border border-fuchsia-500/20">
+                    <FiLayout className="text-lg text-fuchsia-300" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">محتوای ضروری</h2>
+                    <p className="text-xs text-white/40">موقعیت، مجوز و تصاویر اصلی معرفی شعبه</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Location */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
                 <div className="mb-6 flex items-center gap-3">
@@ -725,6 +778,60 @@ export default function EditTenantPage() {
                     {errors.certificate}
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/20 to-cyan-500/20 border border-sky-500/20">
+                    <FiImage className="text-lg text-sky-300" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">تصاویر معرفی شعبه</h2>
+                    <p className="text-xs text-white/40">فضای داخلی، نمای بیرونی و تصویر تیم</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+                  <ImageUploadCard
+                    title="تصویر فضای داخلی"
+                    description="نمایی از فضای داخل شعبه"
+                    preview={interiorPreview}
+                    onTrigger={() => interiorInputRef.current?.click()}
+                    onRemove={() => {
+                      setInteriorFile(null);
+                      setInteriorPreview(null);
+                    }}
+                    inputRef={interiorInputRef}
+                    onChange={handleInteriorChange}
+                    error={errors.interior}
+                  />
+                  <ImageUploadCard
+                    title="تصویر نمای بیرونی"
+                    description="ورودی یا نمای بیرون شعبه"
+                    preview={outsidePreview}
+                    onTrigger={() => outsideInputRef.current?.click()}
+                    onRemove={() => {
+                      setOutsideFile(null);
+                      setOutsidePreview(null);
+                    }}
+                    inputRef={outsideInputRef}
+                    onChange={handleOutsideChange}
+                    error={errors.outside}
+                  />
+                  <ImageUploadCard
+                    title="تصویر تیم"
+                    description="یک تصویر از اعضای تیم شعبه"
+                    preview={teamPreview}
+                    onTrigger={() => teamInputRef.current?.click()}
+                    onRemove={() => {
+                      setTeamFile(null);
+                      setTeamPreview(null);
+                    }}
+                    inputRef={teamInputRef}
+                    onChange={handleTeamChange}
+                    error={errors.team}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -1369,6 +1476,94 @@ function TextareaField({ label, icon, value, onChange, placeholder, required, er
         } placeholder:text-white/20`}
       />
       {error && <p className="text-[10px] text-rose-400 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+function ImageUploadCard({
+  title,
+  description,
+  preview,
+  onTrigger,
+  onRemove,
+  inputRef,
+  onChange,
+  error,
+}: {
+  title: string;
+  description: string;
+  preview: string | null;
+  onTrigger: () => void;
+  onRemove: () => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="mb-4">
+        <h3 className="text-sm font-bold text-white">{title}</h3>
+        <p className="mt-1 text-[11px] text-white/35">{description}</p>
+      </div>
+
+      <div
+        onClick={onTrigger}
+        className={`cursor-pointer flex min-h-56 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+          preview
+            ? "border-emerald-500/30 bg-emerald-500/5"
+            : error
+              ? "border-rose-500/40 bg-rose-500/5"
+              : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
+        }`}
+      >
+        {preview ? (
+          <div className="relative">
+            <img
+              src={preview}
+              alt={title}
+              className="max-h-44 rounded-xl border border-white/10 shadow-lg"
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
+            >
+              <FiX />
+            </button>
+            <p className="mt-3 text-xs text-emerald-400">
+              <FiCheck className="ml-1 inline" />
+              تصویر انتخاب شد
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+              <FiCamera className="text-2xl text-white/30" />
+            </div>
+            <div>
+              <p className="text-sm text-white/50">برای انتخاب تصویر کلیک کنید</p>
+              <p className="mt-1 text-[10px] text-white/25">PNG, JPG تا ۵ مگابایت</p>
+            </div>
+          </>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={onChange}
+        className="hidden"
+      />
+
+      {error && (
+        <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300">
+          <FiAlertCircle />
+          {error}
+        </div>
+      )}
     </div>
   );
 }

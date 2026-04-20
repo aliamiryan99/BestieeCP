@@ -52,14 +52,20 @@ export type TenantSiteContent = {
   phone: string;
   address: string;
   socialLinks: Record<string, string>;
-  latitude?: number | null;
-  longitude?: number | null;
+  location?: {
+    latitude?: number | null;
+    longitude?: number | null;
+  } | null;
   certificateImage?: string | null;
+  certificateImageUrl?: string | null;
   heroTitle?: string | null;
   heroSubTitle?: string | null;
   aboutUsText?: string | null;
   aboutUsCards?: unknown[] | null;
   aboutUsImage?: string | null;
+  interiorImageUrl?: string | null;
+  outsideImageUrl?: string | null;
+  teamImageUrl?: string | null;
 };
 
 export type Tenant = {

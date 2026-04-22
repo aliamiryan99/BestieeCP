@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@backend/api";
 import { MainStatsCard, MetricGroup, AICreditBar } from "@/components/dashboard/DashboardCards";
-import { FiUsers, FiUser, FiAward, FiStar, FiCpu, FiTrendingUp, FiActivity, FiGlobe, FiX } from "react-icons/fi";
+import { FiUsers, FiUser, FiAward, FiStar, FiCpu, FiTrendingUp, FiActivity, FiX } from "react-icons/fi";
 import Link from "next/link";
 import { Doc } from "@backend/dataModel";
 import { motion, AnimatePresence } from "framer-motion";
@@ -148,6 +148,9 @@ export default function Home() {
 
   const role = data.role;
   const metrics = data.metrics as any;
+  const providerMaxCredit = role === "creator"
+    ? Math.max(1, ...metrics.ai.providers.map((provider: any) => provider.credit))
+    : 1;
 
   if (role === "creator") {
     return (
@@ -225,30 +228,42 @@ export default function Home() {
 
         <MetricGroup title="منابع و هوش مصنوعی" icon={<FiCpu />}>
           <MainStatsCard
-            title="اعتبار کل سیستم"
-            value={metrics.ai.availableCredit.toLocaleString()}
+            title="اعتبار باقی‌مانده تامین‌کننده‌ها"
+            value={metrics.ai.totalProviderRemainingCredits.toLocaleString()}
             icon={<FiStar />}
             gradient="from-amber-400 to-orange-500"
+          />
+          <MainStatsCard
+            title="کل اعتبار خریداری‌شده کاربران"
+            value={metrics.ai.totalUserBoughtCredits.toLocaleString()}
+            icon={<FiTrendingUp />}
+            gradient="from-emerald-500 to-teal-600"
+          />
+          <MainStatsCard
+            title="کل مصرف اعتبار تا این لحظه"
+            value={metrics.ai.totalConsumedCredits.toLocaleString()}
+            icon={<FiActivity />}
+            gradient="from-rose-500 to-pink-600"
             submetrics={[
-              { label: "مصرف شده", value: metrics.ai.cumulativeUsage.toLocaleString(), color: "text-rose-400" }
+              { label: "باقی‌مانده کاربران", value: metrics.ai.totalUserRemainingCredits.toLocaleString(), color: "text-cyan-300" }
             ]}
           />
 
           <div className="glass-panel col-span-1 md:col-span-2 lg:col-span-3 rounded-[2rem] border border-white/5 bg-slate-900/60 p-6 shadow-2xl flex flex-col gap-6 lg:flex-row divide-y lg:divide-y-0 lg:divide-x lg:divide-x-reverse divide-white/10">
 
-            {/* Model Distribution */}
+            {/* Provider Credits */}
             <div className="flex-1 flex flex-col gap-6 lg:pl-6">
-              <h4 className="text-sm font-bold text-white/60 mb-2">تخصیص اعتبار مدل‌ها</h4>
+              <h4 className="text-sm font-bold text-white/60 mb-2">اعتبار باقی‌مانده Providerها</h4>
               <div className="flex flex-col gap-5">
-                {metrics.ai.tools.map((t: any, i: number) => (
-                  <AICreditBar key={i} name={t.name} credit={t.credit} maxCredit={25000} />
+                {metrics.ai.providers.map((t: any, i: number) => (
+                  <AICreditBar key={i} name={t.name} credit={t.credit} maxCredit={providerMaxCredit} />
                 ))}
               </div>
             </div>
 
             {/* Demographics Usage */}
             <div className="flex-1 flex flex-col gap-4 pt-6 lg:pt-0 lg:pr-6">
-              <h4 className="text-sm font-bold text-white/60 mb-2">آمار مصرف به تفکیک جنسیت و شهر</h4>
+              <h4 className="text-sm font-bold text-white/60 mb-2">مصرف اعتبار به تفکیک جنسیت</h4>
 
               <div className="flex gap-4 mb-4">
                 <div className="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between">
@@ -261,13 +276,15 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-auto">
-                {metrics.ai.usageByCity.map((c: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center text-xs p-2 bg-black/20 rounded-xl">
-                    <span className="text-white/40 font-bold flex items-center gap-1"><FiGlobe className="opacity-50" /> {c.city}</span>
-                    <span className="text-indigo-300 font-bold">{c.usage}</span>
-                  </div>
-                ))}
+              <div className="mt-auto grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">کل مصرف</div>
+                  <div className="mt-2 text-xl font-black text-white">{metrics.ai.totalConsumedCredits.toLocaleString()}</div>
+                </div>
+                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">کل خرید</div>
+                  <div className="mt-2 text-xl font-black text-emerald-300">{metrics.ai.totalUserBoughtCredits.toLocaleString()}</div>
+                </div>
               </div>
             </div>
           </div>

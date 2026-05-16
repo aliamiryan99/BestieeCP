@@ -6,6 +6,7 @@ import {
   FiX, FiCheck, FiTag, FiDollarSign, FiUsers, FiStar
 } from "react-icons/fi";
 import Link from "next/link";
+import { AiPlansTab } from "./AiPlansTab";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
 import { Doc, Id } from "@backend/dataModel";
@@ -21,6 +22,7 @@ export default function PlansPage() {
 
   const pushToast = useToastStore((state) => state.push);
 
+  const [activeTab, setActiveTab] = useState<"tenants" | "ai">("tenants");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<Id<"plans"> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -209,24 +211,52 @@ export default function PlansPage() {
             <FiArrowRight className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-black text-white tracking-tight md:text-3xl">پلان‌های اشتراک</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight md:text-3xl">پلان‌های اشتراک و اعتبار</h1>
             <p className="text-xs text-white/40 mt-1 uppercase tracking-widest font-bold">مدیریت سطوح دسترسی و قیمت‌ها</p>
           </div>
         </div>
-
-        {isCreator && (
-          <button
-            onClick={isFormOpen ? resetForm : openAddForm}
-            className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-lg ${isFormOpen
-                ? "bg-white/5 text-white/60 border border-white/10"
-                : "bg-gradient-to-l from-indigo-500 to-purple-500 text-white shadow-indigo-500/20 hover:shadow-indigo-500/40"
-              }`}
-          >
-            {isFormOpen ? <FiArrowRight className="rotate-180" /> : <FiPlus />}
-            {isFormOpen ? "انصراف" : "افزودن پلان"}
-          </button>
-        )}
       </div>
+
+      {/* ── Tabs ── */}
+      <div className="flex bg-slate-900/50 p-1.5 rounded-2xl border border-white/5 w-fit">
+        <button
+          onClick={() => setActiveTab("tenants")}
+          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
+            activeTab === "tenants" 
+              ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25" 
+              : "text-white/50 hover:text-white hover:bg-white/5"
+          }`}
+        >
+          اشتراک شعب
+        </button>
+        <button
+          onClick={() => setActiveTab("ai")}
+          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
+            activeTab === "ai" 
+              ? "bg-purple-500 text-white shadow-lg shadow-purple-500/25" 
+              : "text-white/50 hover:text-white hover:bg-white/5"
+          }`}
+        >
+          بسته‌های هوش مصنوعی
+        </button>
+      </div>
+
+      {activeTab === "tenants" ? (
+        <>
+          <div className="flex justify-end">
+            {isCreator && (
+              <button
+                onClick={isFormOpen ? resetForm : openAddForm}
+                className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-lg ${isFormOpen
+                    ? "bg-white/5 text-white/60 border border-white/10"
+                    : "bg-gradient-to-l from-indigo-500 to-purple-500 text-white shadow-indigo-500/20 hover:shadow-indigo-500/40"
+                  }`}
+              >
+                {isFormOpen ? <FiArrowRight className="rotate-180" /> : <FiPlus />}
+                {isFormOpen ? "انصراف" : "افزودن پلان"}
+              </button>
+            )}
+          </div>
 
       {/* ── Add/Edit Document Form ── */}
       <AnimatePresence>
@@ -615,6 +645,10 @@ export default function PlansPage() {
           </div>
         )}
       </AnimatePresence>
+        </>
+      ) : (
+        <AiPlansTab isCreator={isCreator} />
+      )}
     </div>
   );
 }

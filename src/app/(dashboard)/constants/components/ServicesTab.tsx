@@ -1,710 +1,885 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
+import { Id } from "@backend/dataModel";
+import { FiPlus, FiImage, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiAlertCircle, FiInfo, FiFolder } from "react-icons/fi";
 import { useToastStore } from "@/store/toastStore";
-import { sanitizeError } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  FiScissors,
-  FiPlus,
-  FiEdit3,
-  FiTrash2,
-  FiX,
-  FiCheck,
-  FiLoader,
-  FiSearch,
-  FiFilter,
-  FiChevronDown,
-  FiSlash,
-  FiClock,
-  FiTag,
-  FiType,
-  FiAlertTriangle,
-} from "react-icons/fi";
+import { motion } from "framer-motion";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-type TenantType = "barbers" | "barbies" | null;
+type TenantType = "barbers" | "barbies";
+const adminServices = (api as any).services.adminServices;
 
-type PredefinedService = {
-  _id: string;
-  _creationTime: number;
-  name: string;
-  description?: string;
-  duration: number;
-  icon?: string;
-  tenantType?: TenantType;
-};
+export default function ServicesTab() {
+  const [activeTab, setActiveTab] = useState<TenantType>("barbers");
+  const [selectedServiceId, setSelectedServiceId] = useState<Id<"services"> | null>(null);
+  const [isManagingGroups, setIsManagingGroups] = useState(false);
 
-// ─── Config ──────────────────────────────────────────────────────────────────
-const TYPE_CONFIG = {
-  barbers: { label: "مردانه", bg: "bg-blue-500/10", text: "text-blue-300", border: "border-blue-500/20" },
-  barbies: { label: "زنانه", bg: "bg-pink-500/10", text: "text-pink-300", border: "border-pink-500/20" },
-  null: { label: "عمومی (همه)", bg: "bg-emerald-500/10", text: "text-emerald-300", border: "border-emerald-500/20" },
-} as const;
-
-function getTypeConfig(type: TenantType) {
-  if (type === "barbers") return TYPE_CONFIG.barbers;
-  if (type === "barbies") return TYPE_CONFIG.barbies;
-  return TYPE_CONFIG.null;
-}
-
-const SERVICE_ICONS = [
-  // --- Hair & Barber ---
-  { emoji: "✂️", label: "Scissors", tags: ["cut", "hair", "barber", "scissors", "trim"] },
-  { emoji: "💇‍♂️", label: "Man Haircut", tags: ["man", "hair", "style", "cut"] },
-  { emoji: "💇‍♀️", label: "Woman Haircut", tags: ["woman", "hair", "style", "cut"] },
-  { emoji: "🪮", label: "Comb", tags: ["brush", "style", "hair", "comb"] },
-  { emoji: "💈", label: "Barber Pole", tags: ["barber", "store", "shop"] },
-  { emoji: "🧔", label: "Beard", tags: ["shave", "man", "beard", "trim"] },
-  { emoji: "🧔‍♂️", label: "Beard Grooming", tags: ["shave", "beard", "man"] },
-  { emoji: "🚿", label: "Shower", tags: ["wash", "water", "rinse"] },
-  { emoji: "🫧", label: "Bubbles", tags: ["wash", "shampoo", "clean"] },
-  { emoji: "🧴", label: "Lotion", tags: ["cream", "skincare", "oil", "shampoo"] },
-  { emoji: "🎨", label: "Color Palette", tags: ["color", "tint", "dye", "highlights"] },
-  
-  // --- Face & Beauty ---
-  { emoji: "💆‍♂️", label: "Man Face Massage", tags: ["relax", "face", "massage", "facial"] },
-  { emoji: "💆‍♀️", label: "Woman Face Massage", tags: ["relax", "face", "massage", "facial"] },
-  { emoji: "🧖‍♂️", label: "Man Sauna/Facial", tags: ["facial", "steam", "spa", "skin"] },
-  { emoji: "🧖‍♀️", label: "Woman Sauna/Facial", tags: ["facial", "steam", "spa", "skin"] },
-  { emoji: "💄", label: "Lipstick", tags: ["makeup", "face", "beauty", "cosmetics"] },
-  { emoji: "💅", label: "Nail", tags: ["manicure", "pedicure", "nail", "polish"] },
-  { emoji: "🪞", label: "Mirror", tags: ["makeup", "style", "check"] },
-  { emoji: "👄", label: "Lips", tags: ["makeup", "injection", "filler"] },
-  { emoji: "👁️", label: "Eye", tags: ["brows", "lashes", "eyebrows"] },
-  { emoji: "✍️", label: "Threading", tags: ["brows", "threading", "edit"] },
-  
-  // --- Body & Wellness ---
-  { emoji: "💆", label: "Body Massage", tags: ["massage", "wellness", "relax"] },
-  { emoji: "🦶", label: "Foot", tags: ["pedicure", "massage", "reflexology"] },
-  { emoji: "☀️", label: "Sun", tags: ["tanning", "solarium"] },
-  { emoji: "👒", label: "Hat", tags: ["style", "fashion"] },
-  { emoji: "🌿", label: "Natural", tags: ["organic", "spa", "herbal"] },
-  { emoji: "🕯️", label: "Candle", tags: ["spa", "relax", "massage"] },
-  { emoji: "🧊", label: "Ice", tags: ["cold", "treatment", "cryo"] },
-  { emoji: "🔥", label: "Hot", tags: ["stone", "waxing", "hot"] },
-  
-  // --- Miscellaneous ---
-  { emoji: "✨", label: "Sparkles", tags: ["special", "shine", "premium", "vip"] },
-  { emoji: "💎", label: "Diamond", tags: ["premium", "luxury", "vip"] },
-  { emoji: "🤝", label: "Consultation", tags: ["meeting", "advisor", "talk"] },
-  { emoji: "📅", label: "Appointment", tags: ["calendar", "schedule"] },
-  { emoji: "🏷️", label: "Price", tags: ["off", "discount", "sale"] },
-  { emoji: "⚡", label: "Fast", tags: ["express", "quick"] },
-  { emoji: "🌈", label: "Rainbow", tags: ["color", "fun", "art"] },
-];
-
-function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [showPicker, setShowPicker] = useState(false);
-  const [search, setSearch] = useState("");
-  const [hoveredIcon, setHoveredIcon] = useState<any>(null);
-
-  const selectedItem = useMemo(() => SERVICE_ICONS.find(i => i.emoji === value), [value]);
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return SERVICE_ICONS;
-    const q = search.toLowerCase();
-    return SERVICE_ICONS.filter(i => 
-      i.label.toLowerCase().includes(q) || 
-      i.tags.some(t => t.includes(q))
-    );
-  }, [search]);
+  const handleTenantChange = (tenantType: TenantType) => {
+    setActiveTab(tenantType);
+    setSelectedServiceId(null);
+    setIsManagingGroups(false);
+  };
 
   return (
-    <div className="relative w-full">
-      <div 
-        onClick={() => setShowPicker(!showPicker)}
-        className="cursor-pointer group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 py-2 pl-4 pr-2 transition hover:bg-white/10 focus-within:border-amber-500/40 h-[56px] w-full"
-      >
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 border border-white/5 text-2xl shadow-inner group-hover:scale-110 transition shrink-0">
-          {value || "✂️"}
-        </div>
-        
-        <div className="flex flex-1 flex-col justify-center min-w-0 pr-1">
-            {selectedItem ? (
-                <>
-                    <span className="text-right text-[11px] font-black text-white truncate leading-tight mb-0.5">
-                        {selectedItem.label}
-                    </span>
-                    <div className="flex flex-nowrap items-center gap-1 justify-end overflow-hidden w-full whitespace-nowrap">
-                        {selectedItem.tags.slice(0, 4).map(t => (
-                            <span key={t} className="text-[8px] text-orange-400/60 lowercase shrink-0">#{t}</span>
-                        ))}
-                    </div>
-                </>
-            ) : (
-                <span className="text-right text-xs text-white/40 font-medium">
-                    انتخاب آیکون سرویس...
-                </span>
-            )}
-        </div>
-
-        <FiChevronDown className={`text-white/20 transition shrink-0 ${showPicker ? "rotate-180" : ""}`} />
-      </div>
-
-      <AnimatePresence>
-        {showPicker && (
-          <>
-            <div className="fixed inset-0 z-[60]" onClick={() => setShowPicker(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute top-full left-0 right-0 z-[70] mt-2 flex flex-col rounded-3xl border border-white/10 bg-slate-950 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] backdrop-blur-3xl ring-1 ring-white/10"
-            >
-              <div className="p-3 border-b border-white/5 bg-white/3 rounded-t-3xl">
-                 {/* Dynamic Info Banner */}
-                 <div className="mb-3 flex items-center gap-3 h-12 bg-white/5 rounded-2xl px-3 border border-white/5 transition-all">
-                    {hoveredIcon ? (
-                        <>
-                            <div className="text-2xl animate-bounce-short">{hoveredIcon.emoji}</div>
-                            <div className="flex flex-col min-w-0">
-                                <span className="text-[11px] font-black text-white truncate">{hoveredIcon.label}</span>
-                                <div className="flex gap-1 overflow-hidden">
-                                    {hoveredIcon.tags.map((t: string) => (
-                                        <span key={t} className="text-[8px] text-orange-400/70 lowercase">#{t}</span>
-                                    ))}
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex items-center gap-2 text-white/20">
-                            <FiScissors className="text-sm" />
-                            <span className="text-[10px] font-medium italic">ماوس را روی آیکون‌ها ببرید...</span>
-                        </div>
-                    )}
-                 </div>
-
-                 <div className="relative">
-                    <FiSearch className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 text-xs" />
-                    <input 
-                      autoFocus
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="جستجو (انگلیسی)..."
-                      className="w-full rounded-xl bg-white/5 py-2.5 pr-8 pl-3 text-xs text-white outline-none placeholder:text-white/10 focus:bg-white/10"
-                    />
-                 </div>
-              </div>
-
-              <div className="max-h-[200px] overflow-y-auto p-3 scrollbar-hide rounded-b-3xl">
-                <div className="grid grid-cols-4 gap-2">
-                  {filtered.map((item) => (
-                    <button
-                        key={item.emoji}
-                        onMouseEnter={() => setHoveredIcon(item)}
-                        onMouseLeave={() => setHoveredIcon(null)}
-                        onClick={() => {
-                            onChange(item.emoji);
-                            setShowPicker(false);
-                        }}
-                        className={`cursor-pointer flex h-12 items-center justify-center rounded-xl text-2xl transition-all duration-200 hover:bg-white/10 hover:scale-110 active:scale-95 ${value === item.emoji ? "select-none bg-amber-500/20 ring-1 ring-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.15)]" : ""}`}
-                    >
-                        {item.emoji}
-                    </button>
-                  ))}
-                  {filtered.length === 0 && (
-                    <div className="col-span-4 py-8 text-center text-xs text-white/20 italic">آیکونی یافت نشد</div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+    <div className="flex flex-col gap-6">
+      {!selectedServiceId && !isManagingGroups ? (
+        <>
+          <div className="flex w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-xl">
+            {(["barbers", "barbies"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => handleTenantChange(tab)}
+                className={`cursor-pointer flex-1 rounded-xl py-3 text-sm font-bold transition-all ${
+                  activeTab === tab
+                    ? "bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-white shadow-lg"
+                    : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                {tab === "barbers" ? "آرایشگاه مردانه (Barbers)" : "سالن زیبایی (Barbies)"}
+              </button>
+            ))}
+          </div>
+          <ServicesList
+            tenantType={activeTab}
+            onSelectService={setSelectedServiceId}
+            onManageGroups={() => setIsManagingGroups(true)}
+          />
+        </>
+      ) : isManagingGroups ? (
+        <GroupsList tenantType={activeTab} onBack={() => setIsManagingGroups(false)} />
+      ) : selectedServiceId ? (
+        <ModelsList tenantType={activeTab} serviceId={selectedServiceId} onBack={() => setSelectedServiceId(null)} />
+      ) : null}
     </div>
   );
 }
 
-function formatDuration(minutes: number) {
-  if (minutes < 60) return `${minutes} دقیقه`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h} ساعت و ${m} دقیقه` : `${h} ساعت`;
+function GroupsList({ tenantType, onBack }: { tenantType: TenantType, onBack: () => void }) {
+  const groups = useQuery(adminServices.listGroups, { tenantType });
+  const services = useQuery(adminServices.listServices, { tenantType });
+  const pushToast = useToastStore((s) => s.push);
+  const removeGroup = useMutation(adminServices.removeGroup);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<any>(null);
+
+  const handleDelete = async (id: Id<"model_groups">) => {
+    if (!confirm("آیا از حذف این گروه اطمینان دارید؟ مدل‌های این گروه بدون گروه خواهند شد.")) return;
+    try {
+      await removeGroup({ targetId: id });
+      pushToast({ type: "success", title: "موفق", message: "گروه حذف شد" });
+    } catch (e: any) {
+      pushToast({ type: "error", title: "خطا", message: e.message });
+    }
+  };
+
+  const openEdit = (group: any) => {
+    setEditingGroup(group);
+    setIsModalOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditingGroup(null);
+    setIsModalOpen(true);
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          onClick={onBack}
+          className="cursor-pointer flex w-fit items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10"
+        >
+          <FiChevronRight />
+          بازگشت به خدمات
+        </button>
+        <button
+          onClick={openCreate}
+          className="cursor-pointer flex items-center gap-2 rounded-2xl bg-gradient-to-r from-purple-500 to-fuchsia-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+        >
+          <FiPlus className="text-lg" />
+          افزودن گروه مدل
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {groups === undefined ? (
+          <div className="col-span-full py-10 text-center text-white/50">در حال بارگذاری...</div>
+        ) : groups.length === 0 ? (
+          <div className="col-span-full py-10 text-center text-white/50">هیچ گروهی برای این بخش تعریف نشده است.</div>
+        ) : (
+          groups.map((group: any) => (
+            <motion.div
+              key={group._id}
+              layoutId={group._id}
+              className="group flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/60 p-5 shadow-xl transition-all hover:border-purple-400/30 hover:bg-slate-800/80"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-300 ring-1 ring-purple-400/20">
+                  <FiFolder className="text-xl" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-lg font-bold text-white">{group.name}</h3>
+                  <p className="truncate text-sm text-white/50">{group.enName || "بدون نام انگلیسی"}</p>
+                  <p className="mt-2 truncate text-xs font-bold text-purple-200/80">
+                    خدمت: {group.serviceName || "بدون خدمت"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-auto flex items-center justify-end gap-2 border-t border-white/5 pt-4">
+                <button onClick={() => openEdit(group)} className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20">
+                  <FiEdit2 size={14} />
+                </button>
+                <button onClick={() => handleDelete(group._id)} className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 transition hover:bg-rose-500/20">
+                  <FiTrash2 size={14} />
+                </button>
+              </div>
+            </motion.div>
+          ))
+        )}
+      </div>
+
+      {isModalOpen && (
+        <GroupModal
+          tenantType={tenantType}
+          services={services?.filter((service: any) => service.hasModels) || []}
+          initialData={editingGroup}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+    </div>
+  );
 }
 
-// ─── Service Form Modal ────────────────────────────────────────────────────────
-function ServiceModal({
-  initial,
-  onSave,
-  onClose,
-}: {
-  initial?: PredefinedService;
-  onSave: (data: { name: string; description?: string; duration: number; icon?: string; tenantType: TenantType }) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [duration, setDuration] = useState(initial?.duration ?? 30);
-  const [icon, setIcon] = useState(initial?.icon ?? "");
-  const [tenantType, setTenantType] = useState<TenantType>(initial?.tenantType ?? null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+function ServicesList({ tenantType, onSelectService, onManageGroups }: { tenantType: TenantType, onSelectService: (id: Id<"services">) => void, onManageGroups: () => void }) {
+  const services = useQuery(adminServices.listServices, { tenantType });
+  const pushToast = useToastStore((s) => s.push);
+  const removeService = useMutation(adminServices.removeService);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingService, setEditingService] = useState<any>(null);
 
-  const handleSubmit = async () => {
-    if (!name.trim()) { setError("نام سرویس اجباری است"); return; }
-    if (duration < 5) { setError("مدت زمان باید حداقل ۵ دقیقه باشد"); return; }
-    setError("");
-    setSaving(true);
+  const handleDelete = async (id: Id<"services">) => {
+    if (!confirm("آیا از حذف این خدمت اطمینان دارید؟ تمامی مدل‌های زیرمجموعه نیز حذف خواهند شد.")) return;
     try {
-      await onSave({ name: name.trim(), description: description.trim() || undefined, duration, icon: icon.trim() || undefined, tenantType });
+      await removeService({ targetId: id });
+      pushToast({ type: "success", title: "موفق", message: "خدمت حذف شد" });
+    } catch (e: any) {
+      pushToast({ type: "error", title: "خطا", message: e.message });
+    }
+  };
+
+  const openEdit = (service: any) => {
+    setEditingService(service);
+    setIsModalOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditingService(null);
+    setIsModalOpen(true);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col justify-end gap-3 sm:flex-row">
+        <button
+          onClick={onManageGroups}
+          className="cursor-pointer flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition hover:bg-white/15 active:scale-95"
+        >
+          <FiFolder className="text-lg" />
+          مدیریت گروه‌های مدل
+        </button>
+        <button
+          onClick={openCreate}
+          className="cursor-pointer flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+        >
+          <FiPlus className="text-lg" />
+          افزودن خدمت جدید
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {services === undefined ? (
+          <div className="col-span-full py-10 text-center text-white/50">در حال بارگذاری...</div>
+        ) : services.length === 0 ? (
+          <div className="col-span-full py-10 text-center text-white/50">هیچ خدمتی یافت نشد.</div>
+        ) : (
+          services.map((svc: any) => (
+            <motion.div
+              key={svc._id}
+              layoutId={svc._id}
+              className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/60 shadow-xl transition-all hover:border-white/20 hover:bg-slate-800/80"
+            >
+              <div className="relative h-40 w-full overflow-hidden bg-white/5">
+                {svc.imageUrl ? (
+                  <img src={svc.imageUrl} alt={svc.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <FiImage className="text-4xl text-white/20" />
+                  </div>
+                )}
+                <div className="absolute top-3 right-3 flex gap-2">
+                  <span className={`rounded-xl px-2.5 py-1 text-xs font-bold backdrop-blur-md ${svc.hasModels ? "bg-amber-500/80 text-white" : "bg-blue-500/80 text-white"}`}>
+                    {svc.hasModels ? "دارای مدل" : "بدون مدل"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 p-5">
+                <h3 className="text-lg font-bold text-white truncate">
+                  {svc.name} {svc.enName && <span className="text-xs text-white/50 font-normal ml-1">({svc.enName})</span>}
+                </h3>
+                {svc.description && <p className="text-sm text-white/60 line-clamp-2">{svc.description}</p>}
+                
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  {svc.hasModels ? (
+                    <button
+                      onClick={() => onSelectService(svc._id)}
+                      className="cursor-pointer flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/10 py-2.5 text-sm font-bold text-white transition hover:bg-white/20"
+                    >
+                      مدیریت مدل‌ها
+                      <FiChevronLeft />
+                    </button>
+                  ) : (
+                    <div className="flex-1"></div>
+                  )}
+                  
+                  <button onClick={() => openEdit(svc)} className="cursor-pointer flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20">
+                    <FiEdit2 />
+                  </button>
+                  <button onClick={() => handleDelete(svc._id)} className="cursor-pointer flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 transition hover:bg-rose-500/20">
+                    <FiTrash2 />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))
+        )}
+      </div>
+
+      {isModalOpen && (
+        <ServiceModal
+          tenantType={tenantType}
+          initialData={editingService}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ModelsList({ tenantType, serviceId, onBack }: { tenantType: TenantType, serviceId: Id<"services">, onBack: () => void }) {
+  const models = useQuery(adminServices.listModels, { serviceId });
+  const pushToast = useToastStore((s) => s.push);
+  const removeModel = useMutation(adminServices.removeModel);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingModel, setEditingModel] = useState<any>(null);
+
+  const handleDelete = async (id: Id<"models">) => {
+    if (!confirm("آیا از حذف این مدل اطمینان دارید؟")) return;
+    try {
+      await removeModel({ targetId: id });
+      pushToast({ type: "success", title: "موفق", message: "مدل حذف شد" });
+    } catch (e: any) {
+      pushToast({ type: "error", title: "خطا", message: e.message });
+    }
+  };
+
+  const openEdit = (model: any) => {
+    setEditingModel(model);
+    setIsModalOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditingModel(null);
+    setIsModalOpen(true);
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <button
+          onClick={onBack}
+          className="cursor-pointer flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10"
+        >
+          <FiChevronRight />
+          بازگشت به خدمات
+        </button>
+        <button
+          onClick={openCreate}
+          className="cursor-pointer flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+        >
+          <FiPlus className="text-lg" />
+          افزودن مدل جدید
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {models === undefined ? (
+          <div className="col-span-full py-10 text-center text-white/50">در حال بارگذاری...</div>
+        ) : models.length === 0 ? (
+          <div className="col-span-full py-10 text-center text-white/50">هیچ مدلی یافت نشد.</div>
+        ) : (
+          models.map((mod: any) => (
+            <motion.div
+              key={mod._id}
+              layoutId={mod._id}
+              className="group flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/60 shadow-xl transition-all hover:border-white/20 hover:bg-slate-800/80"
+            >
+              <div className="relative h-48 w-full overflow-hidden bg-white/5">
+                {mod.imageUrl ? (
+                  <img src={mod.imageUrl} alt={mod.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <FiImage className="text-4xl text-white/20" />
+                  </div>
+                )}
+                {mod.groupName && (
+                  <div className="absolute top-3 left-3">
+                    <span className="rounded-xl px-2.5 py-1 text-xs font-bold bg-purple-500/80 text-white backdrop-blur-md">
+                      {mod.groupName}
+                    </span>
+                  </div>
+                )}
+                <div className="absolute bottom-3 right-3 flex gap-1">
+                  {mod.difficultyLevel && (
+                    <span className="rounded-lg px-2 py-1 text-[10px] font-bold bg-black/50 text-white backdrop-blur-md border border-white/10" title="سطح دشواری">
+                      <FiAlertCircle className="inline mr-1" />
+                      {mod.difficultyLevel}
+                    </span>
+                  )}
+                  {mod.maintenanceLevel && (
+                    <span className="rounded-lg px-2 py-1 text-[10px] font-bold bg-black/50 text-white backdrop-blur-md border border-white/10" title="میزان نگهداری">
+                      <FiInfo className="inline mr-1" />
+                      {mod.maintenanceLevel}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 p-5 flex-1">
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    {mod.name} {mod.enName && <span className="text-xs text-white/50 font-normal">({mod.enName})</span>}
+                  </h3>
+                  {mod.description && <p className="text-xs text-white/60 line-clamp-2 mt-1">{mod.description}</p>}
+                </div>
+                
+                <div className="flex-1 text-xs space-y-1.5 text-white/50 border-t border-white/5 pt-3 mt-1">
+                  {mod.suitableFor && <p><span className="text-white/80 font-semibold">مناسب برای: </span><span className="line-clamp-1">{mod.suitableFor}</span></p>}
+                  {mod.conditions && <p><span className="text-white/80 font-semibold">شرایط: </span><span className="line-clamp-1">{mod.conditions}</span></p>}
+                  {mod.tips && <p><span className="text-white/80 font-semibold">نکات: </span><span className="line-clamp-1">{mod.tips}</span></p>}
+                </div>
+
+                <div className="mt-2 flex items-center justify-end gap-2 pt-2 border-t border-white/5">
+                  <button onClick={() => openEdit(mod)} className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20">
+                    <FiEdit2 size={14} />
+                  </button>
+                  <button onClick={() => handleDelete(mod._id)} className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 transition hover:bg-rose-500/20">
+                    <FiTrash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))
+        )}
+      </div>
+
+      {isModalOpen && (
+        <ModelModal
+          tenantType={tenantType}
+          serviceId={serviceId}
+          initialData={editingModel}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function GroupModal({ tenantType, services, initialData, onClose }: { tenantType: TenantType, services: any[], initialData: any, onClose: () => void }) {
+  const [serviceId, setServiceId] = useState<Id<"services"> | "">(initialData?.serviceId || services[0]?._id || "");
+  const [name, setName] = useState(initialData?.name || "");
+  const [enName, setEnName] = useState(initialData?.enName || "");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const pushToast = useToastStore((s) => s.push);
+  const createGroup = useMutation(adminServices.createGroup);
+  const updateGroup = useMutation(adminServices.updateGroup);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return pushToast({ type: "error", title: "خطا", message: "نام گروه الزامی است" });
+    if (!serviceId) return pushToast({ type: "error", title: "خطا", message: "انتخاب خدمت الزامی است" });
+
+    setIsSubmitting(true);
+    try {
+      if (initialData) {
+        await updateGroup({
+          targetId: initialData._id,
+          serviceId,
+          name,
+          enName: enName || undefined,
+        });
+        pushToast({ type: "success", title: "موفق", message: "گروه بروزرسانی شد" });
+      } else {
+        await createGroup({
+          tenantType,
+          serviceId,
+          name,
+          enName: enName || undefined,
+        });
+        pushToast({ type: "success", title: "موفق", message: "گروه با موفقیت ایجاد شد" });
+      }
       onClose();
     } catch (e: any) {
-      setError(sanitizeError(e));
+      pushToast({ type: "error", title: "خطا", message: e.message });
     } finally {
-      setSaving(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+        className="w-full max-w-lg my-8 overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl flex flex-col"
       >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-white/5 p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/20">
-              <FiScissors className="text-orange-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-white">{initial ? "ویرایش سرویس" : "سرویس جدید"}</h3>
-              <p className="text-[11px] text-white/40">خدمات از پیش تعریف‌شده پلتفرم</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition">
-            <FiX className="text-sm" />
-          </button>
+        <div className="border-b border-white/10 bg-white/5 p-5 shrink-0">
+          <h2 className="text-xl font-bold text-white">{initialData ? "ویرایش گروه مدل" : "افزودن گروه مدل"}</h2>
         </div>
-
-        {/* Form body */}
-        <div className="flex flex-col gap-4 p-6">
-          {/* Name */}
-          <div>
-            <label className="mb-2 flex items-center gap-1.5 text-xs font-bold text-white/50">
-              <FiType className="text-xs" />
-              نام سرویس
-              <span className="text-rose-400">*</span>
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-amber-500/40 focus:bg-white/8"
-              placeholder="مثلاً: کوتاهی مو"
-            />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">خدمت مربوطه</label>
+            <select
+              value={serviceId}
+              onChange={(e) => setServiceId(e.target.value as Id<"services">)}
+              className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+            >
+              <option value="">انتخاب خدمت...</option>
+              {services.map((service: any) => (
+                <option key={service._id} value={service._id}>
+                  {service.name} {service.enName ? `(${service.enName})` : ""}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="mb-2 flex items-center gap-1.5 text-xs font-bold text-white/50">
-              <FiTag className="text-xs" />
-              توضیحات (اختیاری)
-            </label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">نام گروه (فارسی)</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                placeholder="مثال: فید و تیپر"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">نام انگلیسی (EnName)</label>
+              <input
+                type="text"
+                value={enName}
+                onChange={(e) => setEnName(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white placeholder-white/30 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                placeholder="Fade & Taper"
+                dir="ltr"
+              />
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-center justify-end gap-3 border-t border-white/10 pt-5 shrink-0">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="cursor-pointer rounded-xl px-5 py-2.5 text-sm font-bold text-white/60 hover:bg-white/5 hover:text-white transition">
+              انصراف
+            </button>
+            <button type="submit" disabled={isSubmitting} className="cursor-pointer rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50">
+              {isSubmitting ? "در حال ذخیره..." : "ذخیره گروه"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+function ServiceModal({ tenantType, initialData, onClose }: { tenantType: TenantType, initialData: any, onClose: () => void }) {
+  const [name, setName] = useState(initialData?.name || "");
+  const [enName, setEnName] = useState(initialData?.enName || "");
+  const [description, setDescription] = useState(initialData?.description || "");
+  const [hasModels, setHasModels] = useState(initialData?.hasModels || false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const pushToast = useToastStore((s) => s.push);
+  const createService = useMutation(adminServices.createService);
+  const updateService = useMutation(adminServices.updateService);
+  const generateUploadUrl = useMutation(api.uploads.upload.generateUploadUrl);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return pushToast({ type: "error", title: "خطا", message: "نام الزامی است" });
+    
+    setIsSubmitting(true);
+    try {
+      let imageId = initialData?.imageId;
+
+      if (imageFile) {
+        const uploadUrl = await generateUploadUrl();
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": imageFile.type },
+          body: imageFile,
+        });
+        if (!result.ok) throw new Error("آپلود تصویر شکست خورد");
+        const { storageId } = await result.json();
+        imageId = storageId;
+      }
+
+      if (initialData) {
+        await updateService({
+          targetId: initialData._id,
+          name,
+          enName: enName || undefined,
+          description: description || undefined,
+          hasModels,
+          imageId,
+        });
+        pushToast({ type: "success", title: "موفق", message: "خدمت بروزرسانی شد" });
+      } else {
+        await createService({
+          tenantType,
+          name,
+          enName: enName || undefined,
+          description: description || undefined,
+          hasModels,
+          imageId,
+        });
+        pushToast({ type: "success", title: "موفق", message: "خدمت با موفقیت ایجاد شد" });
+      }
+      onClose();
+    } catch (e: any) {
+      pushToast({ type: "error", title: "خطا", message: e.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-lg my-8 overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl flex flex-col"
+      >
+        <div className="border-b border-white/10 bg-white/5 p-5 shrink-0">
+          <h2 className="text-xl font-bold text-white">{initialData ? "ویرایش خدمت" : "افزودن خدمت جدید"}</h2>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-6 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">نام خدمت (فارسی)</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                placeholder="مثال: کوتاهی مو"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">نام انگلیسی (EnName)</label>
+              <input
+                type="text"
+                value={enName}
+                onChange={(e) => setEnName(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                placeholder="مثال: Haircut"
+              />
+            </div>
+          </div>
+          
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">توضیحات (اختیاری)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-amber-500/40 focus:bg-white/8"
-              placeholder="توضیح کوتاهی از این سرویس..."
+              className="w-full min-h-[100px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-none"
+              placeholder="توضیحاتی درباره این خدمت بنویسید..."
             />
           </div>
-
-          {/* Duration + Icon */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-2 flex items-center gap-1.5 text-xs font-bold text-white/50">
-                <FiClock className="text-xs" />
-                مدت زمان (دقیقه)
-                <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="number"
-                min={5}
-                step={5}
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className="w-full h-[56px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white text-center outline-none transition focus:border-amber-500/40"
-                dir="ltr"
-              />
-              <p className="mt-1 text-[10px] text-white/30 text-center">{formatDuration(duration)}</p>
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-col">
+              <span className="font-bold text-white">دارای مدل‌های زیرمجموعه</span>
+              <span className="text-xs text-white/50">آیا برای این خدمت مدل‌های مختلفی (مثل مدل موی مختلف) وجود دارد؟</span>
             </div>
-            <div>
-              <label className="mb-2 flex items-center gap-1.5 text-xs font-bold text-white/50">
-                آیکون و پیش‌نمایش
-              </label>
-              <IconPicker 
-                value={icon}
-                onChange={setIcon}
-              />
-              <p className="mt-1 text-[10px] opacity-0">spacer</p>
-            </div>
-          </div>
-
-          {/* Tenant Type */}
-          <div>
-            <label className="mb-2 flex items-center gap-1.5 text-xs font-bold text-white/50">
-              <FiFilter className="text-xs" />
-              مناسب برای
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input type="checkbox" className="peer sr-only" checked={hasModels} onChange={(e) => setHasModels(e.target.checked)} />
+              <div className="peer h-6 w-11 rounded-full bg-slate-700 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {([null, "barbers", "barbies"] as (TenantType)[]).map((t) => {
-                const cfg = getTypeConfig(t);
-                const active = tenantType === t;
-                return (
-                  <button
-                    key={String(t)}
-                    onClick={() => setTenantType(t)}
-                    className={`cursor-pointer rounded-2xl border py-2 text-xs font-bold transition ${active ? `${cfg.bg} ${cfg.text} ${cfg.border}` : "border-white/10 bg-white/5 text-white/40 hover:bg-white/8"}`}
-                  >
-                    {cfg.label}
-                  </button>
-                );
-              })}
-            </div>
           </div>
-
-          {/* Error */}
-          {error && (
-            <div className="flex items-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
-              <FiAlertTriangle className="shrink-0" />
-              {error}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex gap-3 border-t border-white/5 p-6">
-          <button onClick={onClose} disabled={saving} className="cursor-pointer flex-1 rounded-2xl border border-white/10 py-2.5 text-sm text-white/60 transition hover:bg-white/10">
-            انصراف
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="cursor-pointer flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-orange-500 via-amber-400 to-rose-500 py-2.5 text-sm font-bold text-black transition disabled:opacity-70"
-          >
-            {saving ? <FiLoader className="animate-spin" /> : <FiCheck />}
-            {saving ? "در حال ذخیره..." : "ذخیره"}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-// ─── Delete Confirm ───────────────────────────────────────────────────────────
-function DeleteModal({ name, onConfirm, onCancel, loading }: {
-  name: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900 p-8 shadow-2xl text-center"
-      >
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 border border-rose-500/20 mx-auto mb-4">
-          <FiTrash2 className="text-2xl text-rose-400" />
-        </div>
-        <h3 className="text-lg font-black text-white mb-1">حذف سرویس</h3>
-        <p className="text-sm text-white/50 mb-6">
-          آیا از حذف <strong className="text-white">«{name}»</strong> اطمینان دارید؟
-        </p>
-        <div className="flex gap-3">
-          <button onClick={onCancel} disabled={loading} className="cursor-pointer flex-1 rounded-2xl border border-white/10 py-2.5 text-sm text-white/60 hover:bg-white/10 transition">
-            انصراف
-          </button>
-          <button onClick={onConfirm} disabled={loading} className="cursor-pointer flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 py-2.5 text-sm font-bold text-white transition hover:bg-rose-500 disabled:opacity-70">
-            {loading ? <FiLoader className="animate-spin" /> : <FiTrash2 />}
-            حذف
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-// ─── Service Card ─────────────────────────────────────────────────────────────
-function ServiceCard({ service, onEdit, onDelete }: {
-  service: PredefinedService;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const typeConfig = getTypeConfig(service.tenantType ?? null);
-
-  return (
-    <div className="group flex flex-col gap-3 rounded-3xl border border-white/5 bg-white/4 p-5 transition-all duration-200 hover:bg-white/7 hover:border-white/10">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/8 border border-white/10 text-xl">
-            {service.icon || "✂️"}
-          </div>
-          <div className="min-w-0">
-            <p className="font-bold text-white text-sm leading-tight truncate">{service.name}</p>
-            <div className="flex items-center gap-1 mt-0.5">
-              <FiClock className="text-white/25 text-[10px]" />
-              <span className="text-[11px] text-white/40">{formatDuration(service.duration)}</span>
-            </div>
-          </div>
-        </div>
-        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${typeConfig.bg} ${typeConfig.text} ${typeConfig.border}`}>
-          {typeConfig.label}
-        </span>
-      </div>
-
-      {/* Description */}
-      {service.description && (
-        <p className="text-xs text-white/40 leading-relaxed">{service.description}</p>
-      )}
-
-      {/* Actions */}
-      <div className="flex gap-2 mt-auto pt-2 border-t border-white/5">
-        <button
-          onClick={onEdit}
-          className="cursor-pointer flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 py-1.5 text-xs text-white/60 transition hover:bg-white/10 hover:text-white"
-        >
-          <FiEdit3 className="text-[10px]" />
-          ویرایش
-        </button>
-        <button
-          onClick={onDelete}
-          className="cursor-pointer flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-800/40 py-1.5 text-xs text-rose-400 transition hover:bg-rose-900/20"
-        >
-          <FiTrash2 className="text-[10px]" />
-          حذف
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Filter Chip ──────────────────────────────────────────────────────────────
-function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`cursor-pointer rounded-2xl border px-4 py-1.5 text-xs font-bold transition-all ${active
-        ? "border-orange-500/40 bg-orange-500/15 text-orange-300"
-        : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
-        }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-export default function PredefinedServicesPage() {
-  const router = useRouter();
-  const me = useQuery(api.users.auth.me);
-  const rawServices = useQuery(api.services.predefined.list, {});
-  const createMutation = useMutation(api.services.predefined.create);
-  const updateMutation = useMutation(api.services.predefined.update);
-  const removeMutation = useMutation(api.services.predefined.remove);
-  const pushToast = useToastStore((s) => s.push);
-
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "barbers" | "barbies" | "general">("all");
-  const [showAdd, setShowAdd] = useState(false);
-  const [editTarget, setEditTarget] = useState<PredefinedService | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<PredefinedService | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const services = rawServices as PredefinedService[] | undefined;
-  const loading = me === undefined || rawServices === undefined;
-
-  const filtered = useMemo(() => {
-    if (!services) return [];
-    let list = [...services];
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(s => s.name.toLowerCase().includes(q) || s.description?.toLowerCase().includes(q));
-    }
-    if (typeFilter === "barbers") list = list.filter(s => s.tenantType === "barbers");
-    else if (typeFilter === "barbies") list = list.filter(s => s.tenantType === "barbies");
-    else if (typeFilter === "general") list = list.filter(s => s.tenantType === null || s.tenantType === undefined);
-    return list;
-  }, [services, search, typeFilter]);
-
-  const stats = useMemo(() => {
-    if (!services) return null;
-    return {
-      total: services.length,
-      barbers: services.filter(s => s.tenantType === "barbers").length,
-      barbies: services.filter(s => s.tenantType === "barbies").length,
-      general: services.filter(s => !s.tenantType).length,
-    };
-  }, [services]);
-
-  const handleCreate = async (data: any) => {
-    await createMutation(data);
-    pushToast({ type: "success", title: "ایجاد شد", message: `سرویس «${data.name}» اضافه شد` });
-  };
-
-  const handleUpdate = async (data: any) => {
-    if (!editTarget) return;
-    await updateMutation({ targetId: editTarget._id as any, ...data });
-    pushToast({ type: "success", title: "بروزرسانی شد", message: `سرویس «${data.name}» ویرایش شد` });
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await removeMutation({ targetId: deleteTarget._id as any });
-      pushToast({ type: "success", title: "حذف شد", message: `سرویس «${deleteTarget.name}» حذف شد` });
-      setDeleteTarget(null);
-    } catch (e: any) {
-      pushToast({ type: "error", title: "خطا", message: sanitizeError(e) });
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  if (!loading && me?.role !== "creator") {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/10 border border-rose-500/20">
-          <FiSlash className="text-2xl text-rose-400" />
-        </div>
-        <p className="text-lg font-bold text-white">دسترسی ندارید</p>
-        <p className="text-sm text-white/40">این صفحه فقط برای خالق پلتفرم قابل دسترس است.</p>
-        <button onClick={() => router.push("/")} className="cursor-pointer mt-2 rounded-2xl border border-white/10 px-5 py-2.5 text-sm text-white/60 hover:bg-white/5 transition">
-          بازگشت
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-6 pb-12">
-
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-5 rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-        <div className="flex items-start justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500/20 to-rose-500/20 border border-orange-500/20">
-              <FiScissors className="text-xl text-orange-400" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-white">سرویس‌های از پیش تعریف شده</h1>
-              <p className="text-sm text-white/40 mt-0.5">قالب‌های آماده برای آرایشگاه‌های مردانه و زنانه</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="cursor-pointer flex items-center gap-2 rounded-2xl bg-gradient-to-l from-orange-500 via-amber-400 to-rose-500 px-5 py-2.5 text-sm font-bold text-black shadow-lg transition hover:scale-105 active:scale-95"
-          >
-            <FiPlus />
-            سرویس جدید
-          </button>
-        </div>
-
-        {/* Stats */}
-        {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: "کل سرویس‌ها", value: stats.total, color: "text-white" },
-              { label: "مردانه", value: stats.barbers, color: "text-blue-300" },
-              { label: "زنانه", value: stats.barbies, color: "text-pink-300" },
-              { label: "عمومی", value: stats.general, color: "text-emerald-300" },
-            ].map((s) => (
-              <div key={s.label} className="flex flex-col gap-1 rounded-2xl bg-white/5 border border-white/5 px-4 py-3">
-                <span className={`text-xl font-black ${s.color}`}>{s.value}</span>
-                <span className="text-[10px] text-white/30">{s.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Search + Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[200px]">
-            <FiSearch className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-sm" />
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">تصویر خدمت</label>
             <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 pr-10 pl-4 text-sm text-white placeholder:text-white/25 outline-none transition focus:border-orange-400/50"
-              placeholder="جستجو نام یا توضیحات..."
+              type="file"
+              accept="image/*"
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-white/10 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-white/20 transition-all cursor-pointer"
             />
-            {search && <button onClick={() => setSearch("")} className="cursor-pointer absolute left-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition"><FiX className="text-sm" /></button>}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <FilterChip label="همه" active={typeFilter === "all"} onClick={() => setTypeFilter("all")} />
-            <FilterChip label="مردانه" active={typeFilter === "barbers"} onClick={() => setTypeFilter("barbers")} />
-            <FilterChip label="زنانه" active={typeFilter === "barbies"} onClick={() => setTypeFilter("barbies")} />
-            <FilterChip label="عمومی" active={typeFilter === "general"} onClick={() => setTypeFilter("general")} />
+          <div className="mt-4 flex items-center justify-end gap-3 border-t border-white/10 pt-5 shrink-0">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="cursor-pointer rounded-xl px-5 py-2.5 text-sm font-bold text-white/60 hover:bg-white/5 hover:text-white transition">
+              انصراف
+            </button>
+            <button type="submit" disabled={isSubmitting} className="cursor-pointer rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50">
+              {isSubmitting ? "در حال ذخیره..." : "ذخیره خدمت"}
+            </button>
           </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+function ModelModal({ tenantType, serviceId, initialData, onClose }: { tenantType: TenantType, serviceId: Id<"services">, initialData: any, onClose: () => void }) {
+  const groups = useQuery(adminServices.listGroups, { tenantType, serviceId });
+  
+  const [name, setName] = useState(initialData?.name || "");
+  const [enName, setEnName] = useState(initialData?.enName || "");
+  const [catalogId, setCatalogId] = useState(initialData?.id || "");
+  const [groupId, setGroupId] = useState<Id<"model_groups"> | "">(initialData?.groupId || "");
+  const [description, setDescription] = useState(initialData?.description || "");
+  const [suitableFor, setSuitableFor] = useState(initialData?.suitableFor || "");
+  const [conditions, setConditions] = useState(initialData?.conditions || "");
+  const [difficultyLevel, setDifficultyLevel] = useState(initialData?.difficultyLevel || "");
+  const [maintenanceLevel, setMaintenanceLevel] = useState(initialData?.maintenanceLevel || "");
+  const [tips, setTips] = useState(initialData?.tips || "");
+  const [promptDesc, setPromptDesc] = useState(initialData?.promptDesc || "");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const pushToast = useToastStore((s) => s.push);
+  const createModel = useMutation(adminServices.createModel);
+  const updateModel = useMutation(adminServices.updateModel);
+  const generateUploadUrl = useMutation(api.uploads.upload.generateUploadUrl);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return pushToast({ type: "error", title: "خطا", message: "نام الزامی است" });
+    
+    setIsSubmitting(true);
+    try {
+      let imageId = initialData?.imageId;
+
+      if (imageFile) {
+        const uploadUrl = await generateUploadUrl();
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": imageFile.type },
+          body: imageFile,
+        });
+        if (!result.ok) throw new Error("آپلود تصویر شکست خورد");
+        const { storageId } = await result.json();
+        imageId = storageId;
+      }
+
+      const modelData = {
+        name,
+        id: catalogId || undefined,
+        enName: enName || undefined,
+        groupId: groupId || undefined,
+        description: description || undefined,
+        suitableFor: suitableFor || undefined,
+        conditions: conditions || undefined,
+        difficultyLevel: difficultyLevel || undefined,
+        maintenanceLevel: maintenanceLevel || undefined,
+        tips: tips || undefined,
+        promptDesc: promptDesc || undefined,
+        imageId,
+      };
+
+      if (initialData) {
+        await updateModel({ targetId: initialData._id, ...modelData });
+        pushToast({ type: "success", title: "موفق", message: "مدل بروزرسانی شد" });
+      } else {
+        await createModel({ serviceId, ...modelData });
+        pushToast({ type: "success", title: "موفق", message: "مدل با موفقیت ایجاد شد" });
+      }
+      onClose();
+    } catch (e: any) {
+      pushToast({ type: "error", title: "خطا", message: e.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-2xl my-8 overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl flex flex-col max-h-[90vh]"
+      >
+        <div className="border-b border-white/10 bg-white/5 p-5 shrink-0">
+          <h2 className="text-xl font-bold text-white">{initialData ? "ویرایش مدل" : "افزودن مدل جدید"}</h2>
         </div>
-      </div>
-
-      {/* ── Result count ─────────────────────────────────────── */}
-      {!loading && (
-        <p className="px-1 text-sm text-white/40">
-          نمایش <span className="font-bold text-white">{filtered.length}</span> سرویس
-          {services && filtered.length !== services.length && <span className="text-white/25"> از {services.length}</span>}
-        </p>
-      )}
-
-      {/* ── Grid ─────────────────────────────────────────────── */}
-      {loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-3xl border border-white/5 bg-white/4 p-5 h-36" />
-          ))}
-        </div>
-      )}
-
-      {!loading && filtered.length === 0 && (
-        <div className="flex flex-col items-center gap-4 py-20 rounded-3xl border border-white/5 bg-white/3 text-center">
-          <div className="h-14 w-14 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-            <FiScissors className="text-2xl text-white/30" />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-6 overflow-y-auto">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">نام مدل</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                placeholder="مثال: فید کلاسیک"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">نام انگلیسی (EnName)</label>
+              <input
+                type="text"
+                value={enName}
+                onChange={(e) => setEnName(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                placeholder="مثال: Classic Fade"
+              />
+            </div>
           </div>
-          <p className="text-sm text-white/40">سرویسی یافت نشد.</p>
-          {search && <button onClick={() => setSearch("")} className="cursor-pointer text-xs text-orange-400/70 hover:text-orange-300 transition">پاکسازی جستجو</button>}
-        </div>
-      )}
 
-      {!loading && filtered.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((s) => (
-            <ServiceCard
-              key={s._id}
-              service={s}
-              onEdit={() => setEditTarget(s)}
-              onDelete={() => setDeleteTarget(s)}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">شناسه کاتالوگ (ID)</label>
+            <input
+              type="text"
+              value={catalogId}
+              onChange={(e) => setCatalogId(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              placeholder="buzz-cut"
+              dir="ltr"
             />
-          ))}
-        </div>
-      )}
+          </div>
 
-      {/* Modals */}
-      <AnimatePresence>
-        {showAdd && (
-          <ServiceModal onSave={handleCreate} onClose={() => setShowAdd(false)} />
-        )}
-        {editTarget && (
-          <ServiceModal initial={editTarget} onSave={handleUpdate} onClose={() => setEditTarget(null)} />
-        )}
-        {deleteTarget && (
-          <DeleteModal
-            name={deleteTarget.name}
-            onConfirm={handleDelete}
-            onCancel={() => setDeleteTarget(null)}
-            loading={deleting}
-          />
-        )}
-      </AnimatePresence>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">گروه‌بندی</label>
+              <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value as Id<"model_groups">)}
+                className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              >
+                <option value="">(بدون گروه)</option>
+                {groups?.map((g: any) => (
+                  <option key={g._id} value={g._id}>{g.name} {g.enName ? `(${g.enName})` : ""}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">سطح دشواری</label>
+              <select
+                value={difficultyLevel}
+                onChange={(e) => setDifficultyLevel(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              >
+                <option value="">انتخاب کنید...</option>
+                <option value="آسان">آسان</option>
+                <option value="متوسط">متوسط</option>
+                <option value="دشوار">دشوار</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">میزان نگهداری</label>
+              <select
+                value={maintenanceLevel}
+                onChange={(e) => setMaintenanceLevel(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              >
+                <option value="">انتخاب کنید...</option>
+                <option value="آسان">آسان</option>
+                <option value="متوسط">متوسط</option>
+                <option value="دشوار">دشوار</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-white/80">شرایط</label>
+              <input
+                type="text"
+                value={conditions}
+                onChange={(e) => setConditions(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                placeholder="مثال: موهای ضخیم و صاف"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">مناسب برای</label>
+            <input
+              type="text"
+              value={suitableFor}
+              onChange={(e) => setSuitableFor(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              placeholder="مثال: محیط‌های رسمی"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">نکات (Tips)</label>
+            <textarea
+              value={tips}
+              onChange={(e) => setTips(e.target.value)}
+              className="w-full min-h-[80px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-none"
+              placeholder="نکات نگهداری یا پیشنهاد..."
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">توضیح پرامپت تصویر (Prompt Description)</label>
+            <textarea
+              value={promptDesc}
+              onChange={(e) => setPromptDesc(e.target.value)}
+              className="w-full min-h-[80px] rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-emerald-100 placeholder-white/30 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none text-left dir-ltr"
+              placeholder="clean buzz cut"
+              dir="ltr"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">توضیحات کلی</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full min-h-[80px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-none"
+              placeholder="توضیحاتی درباره این مدل بنویسید..."
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">تصویر مدل</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-white/10 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-white/20 transition-all cursor-pointer"
+            />
+          </div>
+          
+          <div className="mt-4 flex items-center justify-end gap-3 border-t border-white/10 pt-5 shrink-0">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="cursor-pointer rounded-xl px-5 py-2.5 text-sm font-bold text-white/60 hover:bg-white/5 hover:text-white transition">
+              انصراف
+            </button>
+            <button type="submit" disabled={isSubmitting} className="cursor-pointer rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50">
+              {isSubmitting ? "در حال ذخیره..." : "ذخیره مدل"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
     </div>
   );
 }

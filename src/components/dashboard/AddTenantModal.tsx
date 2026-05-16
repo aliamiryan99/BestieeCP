@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import {
   FiAlertCircle,
   FiCheck,
-  FiGlobe,
   FiLink,
   FiX,
 } from 'react-icons/fi';
@@ -18,16 +17,12 @@ type Props = {
 };
 
 export function AddTenantModal({ open, onClose }: Props) {
-  const defaultMain = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'nobiro.ir';
+  const defaultMain = 'bestiee.ir';
   const activeCities = useQuery(api.cities.listActive);
   const createTenant = useMutation(api.tenants.tenants.create);
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
   const [cityId, setCityId] = useState<Id<"cities"> | "">("");
-  const [domainType, setDomainType] = useState<'subdomain' | 'custom'>(
-    'subdomain',
-  );
-  const [domainAddress, setDomainAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -35,21 +30,11 @@ export function AddTenantModal({ open, onClose }: Props) {
   const validations = useMemo(() => {
     const errors: string[] = [];
     if (!name.trim()) errors.push('نام شعبه الزامی است');
-    if (!domainType) errors.push('نوع دامنه را مشخص کنید');
-    if (domainType === 'subdomain' && !/^[a-z]+$/.test(name.trim())) {
+    if (!/^[a-z]+$/.test(name.trim())) {
       errors.push('نام زیر دامنه باید فقط با حروف کوچک انگلیسی باشد');
     }
-    if (domainType === 'custom') {
-      if (!domainAddress.trim()) errors.push('دامنه اختصاصی را وارد کنید');
-      if (
-        domainAddress &&
-        !/^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domainAddress.trim().toLowerCase())
-      ) {
-        errors.push('دامنه اختصاصی معتبر نیست');
-      }
-    }
     return errors;
-  }, [domainAddress, domainType, name]);
+  }, [name]);
 
   const handleSubmit = async () => {
     if (validations.length) {
@@ -61,7 +46,7 @@ export function AddTenantModal({ open, onClose }: Props) {
     const payload = {
       name: name.trim(),
       type: "barbers" as const,
-      subdomain: domainType === 'subdomain' ? name.trim() : "",
+      subdomain: name.trim(),
       mainDomain: defaultMain,
       title: title.trim() || name.trim(),
       cityId: cityId ? (cityId as Id<"cities">) : undefined,
@@ -73,8 +58,6 @@ export function AddTenantModal({ open, onClose }: Props) {
       setToast({ type: 'success', message: 'شعبه جدید با موفقیت ایجاد شد' });
       setName('');
       setTitle('');
-      setDomainAddress('');
-      setDomainType('subdomain');
       setCityId('');
       setTimeout(() => {
         onClose();
@@ -97,7 +80,7 @@ export function AddTenantModal({ open, onClose }: Props) {
           <div>
             <p className="text-lg font-semibold text-white">افزودن شعبه جدید</p>
             <p className="text-sm text-muted-soft">
-              زیر دامنه یا دامنه اختصاصی را وارد کنید
+              شعبه با دامنه اصلی bestiee.ir ساخته می‌شود
             </p>
           </div>
           <button
@@ -149,44 +132,6 @@ export function AddTenantModal({ open, onClose }: Props) {
               ))}
             </select>
           </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setDomainType('subdomain')}
-              className={`flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left transition ${domainType === 'subdomain'
-                  ? 'border-orange-400/60 bg-orange-500/10 text-white'
-                  : 'border-white/10 bg-white/5 text-muted'
-                }`}
-            >
-              <span className="text-sm font-semibold">زیر دامنه</span>
-              <span className="text-xs text-muted-soft">مانند fadecity.nobiro.ir</span>
-            </button>
-            <button
-              onClick={() => setDomainType('custom')}
-              className={`flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left transition ${domainType === 'custom'
-                  ? 'border-rose-400/60 bg-rose-500/10 text-white'
-                  : 'border-white/10 bg-white/5 text-muted'
-                }`}
-            >
-              <span className="text-sm font-semibold">دامنه اختصاصی</span>
-              <span className="text-xs text-muted-soft">مانند barbers.ir</span>
-            </button>
-          </div>
-
-          {domainType === 'custom' ? (
-            <label className="block space-y-1 text-sm">
-              <span className="text-muted">دامنه اختصاصی</span>
-              <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 px-3">
-                <FiGlobe className="text-muted" />
-                <input
-                  value={domainAddress}
-                  onChange={(e) => setDomainAddress(e.target.value)}
-                  className="w-full bg-transparent px-3 py-3 text-white outline-none"
-                  placeholder="مثال: barbers.ir"
-                />
-              </div>
-            </label>
-          ) : null}
 
           {formError ? (
             <div className="flex items-center gap-2 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">

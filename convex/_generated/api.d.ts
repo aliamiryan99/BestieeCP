@@ -9,6 +9,9 @@
  */
 
 import type * as ai_ai from "../ai/ai.js";
+import type * as ai_credit_plans from "../ai/credit_plans.js";
+import type * as ai_providers from "../ai/providers.js";
+import type * as ai_settings from "../ai/settings.js";
 import type * as announcements_announcements from "../announcements/announcements.js";
 import type * as auth from "../auth.js";
 import type * as bookings_bookings from "../bookings/bookings.js";
@@ -19,6 +22,7 @@ import type * as communications_sms from "../communications/sms.js";
 import type * as crons from "../crons.js";
 import type * as dashboard_dashboard from "../dashboard/dashboard.js";
 import type * as data_iran_cities from "../data/iran_cities.js";
+import type * as debug from "../debug.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as notifications_notifications from "../notifications/notifications.js";
@@ -31,7 +35,9 @@ import type * as services_predefined from "../services/predefined.js";
 import type * as services_staffServices from "../services/staffServices.js";
 import type * as services_tenantServices from "../services/tenantServices.js";
 import type * as sweepers_activity from "../sweepers/activity.js";
+import type * as tenants_activityHelpers from "../tenants/activityHelpers.js";
 import type * as tenants_comments from "../tenants/comments.js";
+import type * as tenants_explore from "../tenants/explore.js";
 import type * as tenants_gallery from "../tenants/gallery.js";
 import type * as tenants_migrations from "../tenants/migrations.js";
 import type * as tenants_plans from "../tenants/plans.js";
@@ -39,6 +45,7 @@ import type * as tenants_settings from "../tenants/settings.js";
 import type * as tenants_site_content from "../tenants/site_content.js";
 import type * as tenants_tenants from "../tenants/tenants.js";
 import type * as testConfig from "../testConfig.js";
+import type * as testQuery from "../testQuery.js";
 import type * as uploads_upload from "../uploads/upload.js";
 import type * as users_auth from "../users/auth.js";
 import type * as users_authConfig from "../users/authConfig.js";
@@ -60,6 +67,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "ai/ai": typeof ai_ai;
+  "ai/credit_plans": typeof ai_credit_plans;
+  "ai/providers": typeof ai_providers;
+  "ai/settings": typeof ai_settings;
   "announcements/announcements": typeof announcements_announcements;
   auth: typeof auth;
   "bookings/bookings": typeof bookings_bookings;
@@ -70,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "dashboard/dashboard": typeof dashboard_dashboard;
   "data/iran_cities": typeof data_iran_cities;
+  debug: typeof debug;
   http: typeof http;
   myFunctions: typeof myFunctions;
   "notifications/notifications": typeof notifications_notifications;
@@ -82,7 +93,9 @@ declare const fullApi: ApiFromModules<{
   "services/staffServices": typeof services_staffServices;
   "services/tenantServices": typeof services_tenantServices;
   "sweepers/activity": typeof sweepers_activity;
+  "tenants/activityHelpers": typeof tenants_activityHelpers;
   "tenants/comments": typeof tenants_comments;
+  "tenants/explore": typeof tenants_explore;
   "tenants/gallery": typeof tenants_gallery;
   "tenants/migrations": typeof tenants_migrations;
   "tenants/plans": typeof tenants_plans;
@@ -90,6 +103,7 @@ declare const fullApi: ApiFromModules<{
   "tenants/site_content": typeof tenants_site_content;
   "tenants/tenants": typeof tenants_tenants;
   testConfig: typeof testConfig;
+  testQuery: typeof testQuery;
   "uploads/upload": typeof uploads_upload;
   "users/auth": typeof users_auth;
   "users/authConfig": typeof users_authConfig;

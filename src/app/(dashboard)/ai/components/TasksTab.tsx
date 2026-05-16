@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
 import {
   FiClock,
@@ -12,6 +12,7 @@ import {
   FiServer,
   FiChevronDown,
   FiChevronUp,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 const statusConfig = {
@@ -34,7 +35,20 @@ function formatTimeAgo(timestamp: number): string {
 
 export default function TasksTab() {
   const tasks = useQuery(api.ai.ai.listAllTasks);
+  const retryTask = useMutation(api.ai.ai.retryTask);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState<Record<string, boolean>>({});
+
+  const handleRetry = async (taskId: any) => {
+    try {
+      setIsRetrying((prev) => ({ ...prev, [taskId]: true }));
+      await retryTask({ taskId });
+    } catch (e) {
+      console.error("Failed to retry task", e);
+    } finally {
+      setIsRetrying((prev) => ({ ...prev, [taskId]: false }));
+    }
+  };
 
   if (tasks === undefined) {
     return (
@@ -166,10 +180,27 @@ export default function TasksTab() {
                         <span className="text-xs font-medium text-white/70">{task.cameraPosition}</span>
                       </div>
                     </div>
-                    {task.errorMessage && (
-                      <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl">
-                        <span className="text-xs text-rose-400/70 block mb-1">خطای سرویس:</span>
-                        <p className="text-sm text-rose-400">{task.errorMessage}</p>
+                    {(task.errorMessage || task.status === "failed") && (
+                      <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl flex flex-col gap-3">
+                        {task.errorMessage && (
+                          <div>
+                            <span className="text-xs text-rose-400/70 block mb-1">خطای سرویس:</span>
+                            <p className="text-sm text-rose-400">{task.errorMessage}</p>
+                          </div>
+                        )}
+                        {task.status === "failed" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRetry(task._id);
+                            }}
+                            disabled={isRetrying[task._id]}
+                            className="flex items-center justify-center gap-2 px-3 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-lg text-xs font-medium transition disabled:opacity-50 mt-auto"
+                          >
+                            <FiRefreshCw className={isRetrying[task._id] ? "animate-spin" : ""} />
+                            تلاش مجدد
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

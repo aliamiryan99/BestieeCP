@@ -39,6 +39,7 @@ import {
 } from "react-icons/fi";
 
 const LocationPicker = dynamic(() => import("@/components/profile/LocationPicker"), { ssr: false });
+const MAIN_DOMAIN = "bestiee.ir";
 
 // ─── Step indicator config ────────────────────────────────────────────────────
 const STEPS = [
@@ -94,13 +95,6 @@ export default function NewTenantPage() {
   const [type, setType] = useState<"barbers" | "barbies">("barbers");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-
-  const availableDomains = useQuery(api.tenants.tenants.listMainDomains, { tenantType: type });
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
-  const activeDomain = availableDomains?.some((d: { domain: string }) => d.domain === selectedDomain)
-    ? selectedDomain
-    : (availableDomains?.[0]?.domain ?? null);
-  const defaultMain = activeDomain ?? process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "bestiee.ir";
 
   const [heroTitle, setHeroTitle] = useState("");
   const [heroSubTitle, setHeroSubTitle] = useState("");
@@ -273,7 +267,7 @@ export default function NewTenantPage() {
         name: name.trim(),
         type,
         subdomain: subdomain.trim(),
-        mainDomain: defaultMain,
+        mainDomain: MAIN_DOMAIN,
         cityId: cityId || undefined,
         title: title.trim(),
         phone: phone.trim() || undefined,
@@ -450,13 +444,13 @@ export default function NewTenantPage() {
                       dir="ltr"
                     />
                     <span className="shrink-0 bg-white/5 border-r border-white/10 px-3 py-3 text-xs text-white/40 font-mono" dir="ltr">
-                      .{defaultMain}
+                      .{MAIN_DOMAIN}
                     </span>
                   </div>
                   {errors.subdomain && <p className="mt-1 text-[11px] text-rose-400">{errors.subdomain}</p>}
                   {subdomain && !errors.subdomain && (
                     <p className="mt-1 text-[11px] text-emerald-400/60 font-mono" dir="ltr">
-                      {subdomain}.{defaultMain}
+                      {subdomain}.{MAIN_DOMAIN}
                     </p>
                   )}
                 </div>
@@ -469,7 +463,7 @@ export default function NewTenantPage() {
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => { setType("barbers"); setSelectedDomain(null); }}
+                      onClick={() => setType("barbers")}
                       className={`cursor-pointer flex flex-col gap-1 rounded-2xl border px-4 py-3 text-right transition ${type === "barbers"
                         ? "border-blue-500/40 bg-blue-500/10 text-white"
                         : "border-white/10 bg-white/5 text-white/50 hover:bg-white/8"
@@ -479,7 +473,7 @@ export default function NewTenantPage() {
                       <span className="text-[10px] text-white/30">barbers</span>
                     </button>
                     <button
-                      onClick={() => { setType("barbies"); setSelectedDomain(null); }}
+                      onClick={() => setType("barbies")}
                       className={`cursor-pointer flex flex-col gap-1 rounded-2xl border px-4 py-3 text-right transition ${type === "barbies"
                         ? "border-pink-500/40 bg-pink-500/10 text-white"
                         : "border-white/10 bg-white/5 text-white/50 hover:bg-white/8"
@@ -489,43 +483,6 @@ export default function NewTenantPage() {
                       <span className="text-[10px] text-white/30">barbies</span>
                     </button>
                   </div>
-                </div>
-
-                {/* Main Domain Picker */}
-                <div className="col-span-1 lg:col-span-2">
-                  <label className="mb-2 flex items-center gap-1.5 text-xs font-bold text-white/50">
-                    <FiGlobe />
-                    دامنه اصلی
-                    <span className="text-rose-400">*</span>
-                  </label>
-                  {!availableDomains ? (
-                    <div className="flex items-center gap-2 text-sm text-white/40">
-                      <FiLoader className="animate-spin text-xs" />
-                      در حال بارگذاری دامنه‌ها...
-                    </div>
-                  ) : availableDomains.length === 0 ? (
-                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-                      هیچ دامنه‌ای برای این نوع شعبه تعریف نشده. لطفاً از صفحه دامنه‌ها اضافه کنید.
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {availableDomains.map((d: any) => (
-                        <button
-                          key={d._id}
-                          onClick={() => setSelectedDomain(d.domain)}
-                          className={`cursor-pointer flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-mono font-bold transition ${activeDomain === d.domain
-                            ? "border-orange-500/40 bg-orange-500/10 text-orange-300"
-                            : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10"
-                            }`}
-                          dir="ltr"
-                        >
-                          {activeDomain === d.domain && <FiCheck className="text-xs" />}
-                          {d.domain}
-                          {d.description && <span className="text-[10px] text-white/30 font-normal">{d.description}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 <div className="col-span-1 lg:col-span-2">

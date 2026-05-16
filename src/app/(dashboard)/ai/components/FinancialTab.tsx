@@ -14,7 +14,12 @@ type FinancialSettings = {
   profitRatio?: number;
   dollarPriceToman?: number;
   creditPriceCents?: number;
-  gptImageCostCredits?: number;
+  gptImageCostsCredits?: {
+    res1K: number;
+    res2K: number;
+    res4K: number;
+  };
+  creditPriceToman?: number;
 } | null;
 
 export default function FinancialTab({
@@ -25,7 +30,12 @@ export default function FinancialTab({
   const [profitRatio, setProfitRatio] = useState<number>(1);
   const [dollarPrice, setDollarPrice] = useState<number>(160000);
   const [creditPriceCents, setCreditPriceCents] = useState<number>(1);
-  const [gptCost, setGptCost] = useState<number>(2);
+  const [creditPriceToman, setCreditPriceToman] = useState<number>(1600);
+  const [gptCosts, setGptCosts] = useState({
+    res1K: 2,
+    res2K: 3,
+    res4K: 5,
+  });
   const [isSaving, setIsSaving] = useState(false);
   const pushToast = useToastStore((state) => state.push);
 
@@ -36,10 +46,13 @@ export default function FinancialTab({
       setProfitRatio(settings.profitRatio ?? 1);
       setDollarPrice(settings.dollarPriceToman ?? 160000);
       setCreditPriceCents(settings.creditPriceCents ?? 1);
-      // Fallback or use gptImageCostCredits from settings
-      const s = settings as any;
-      if (s.gptImageCostCredits !== undefined) {
-        setGptCost(s.gptImageCostCredits);
+      setCreditPriceToman(settings.creditPriceToman ?? 1600);
+      if (settings.gptImageCostsCredits) {
+        setGptCosts({
+          res1K: settings.gptImageCostsCredits.res1K ?? 2,
+          res2K: settings.gptImageCostsCredits.res2K ?? 3,
+          res4K: settings.gptImageCostsCredits.res4K ?? 5,
+        });
       }
     }
   }, [settings]);
@@ -51,7 +64,8 @@ export default function FinancialTab({
         profitRatio,
         dollarPriceToman: dollarPrice,
         creditPriceCents,
-        gptImageCostCredits: gptCost,
+        creditPriceToman,
+        gptImageCostsCredits: gptCosts,
       });
       pushToast({
         type: "success",
@@ -73,9 +87,9 @@ export default function FinancialTab({
     }
   };
 
-  const baseCostToman =
-    ((gptCost * creditPriceCents) / 100) * dollarPrice;
-  const userCostToman = baseCostToman * profitRatio;
+  // Calculation: Expected Toman Price = (Cent/100) * DollarToman * ProfitRatio
+  const expectedTomanPrice = (creditPriceCents / 100) * dollarPrice * profitRatio;
+  const isProfitable = creditPriceToman >= expectedTomanPrice;
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
@@ -96,27 +110,50 @@ export default function FinancialTab({
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-3">
               <label className="text-sm font-bold text-white/70 block">
-                هزینه مدل GPT-Image-2 (اعتبار)
+                هزینه مدل GPT-Image-2 (اعتبار بر اساس رزولوشن)
               </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  value={gptCost}
-                  onChange={(e) => setGptCost(Number(e.target.value))}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
-                  dir="ltr"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-sm font-bold">
-                  credits
-                </span>
+              <div className="grid grid-cols-3 gap-4">
+                {/* 1K */}
+                <div className="relative">
+                  <span className="block text-xs text-white/50 mb-1">1K Resolution</span>
+                  <input
+                    type="number"
+                    value={gptCosts.res1K}
+                    onChange={(e) => setGptCosts(p => ({ ...p, res1K: Number(e.target.value) }))}
+                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                    dir="ltr"
+                  />
+                </div>
+                {/* 2K */}
+                <div className="relative">
+                  <span className="block text-xs text-white/50 mb-1">2K Resolution</span>
+                  <input
+                    type="number"
+                    value={gptCosts.res2K}
+                    onChange={(e) => setGptCosts(p => ({ ...p, res2K: Number(e.target.value) }))}
+                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                    dir="ltr"
+                  />
+                </div>
+                {/* 4K */}
+                <div className="relative">
+                  <span className="block text-xs text-white/50 mb-1">4K Resolution</span>
+                  <input
+                    type="number"
+                    value={gptCosts.res4K}
+                    onChange={(e) => setGptCosts(p => ({ ...p, res4K: Number(e.target.value) }))}
+                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                    dir="ltr"
+                  />
+                </div>
               </div>
               <p className="text-xs text-white/40">
-                هزینه تولید هر تصویر توسط مدل جدید GPT-Image-2.
+                هزینه تولید هر تصویر توسط مدل جدید GPT-Image-2 بر اساس رزولوشن انتخاب شده.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div className="space-y-3">
               <label className="text-sm font-bold text-white/70 block">
                 قیمت روز دلار (تومان)
@@ -137,7 +174,7 @@ export default function FinancialTab({
 
             <div className="space-y-3">
               <label className="text-sm font-bold text-white/70 block">
-                قیمت هر اعتبار (سنت)
+                قیمت پایه اعتبار (سنت)
               </label>
               <div className="relative">
                 <input
@@ -153,9 +190,24 @@ export default function FinancialTab({
                   cent
                 </span>
               </div>
-              <p className="text-xs text-white/35">
-                این مقدار تعیین می‌کند هر ۱ credit چند سنت هزینه پایه دارد.
-              </p>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-white/70 block">
+                قیمت دستی اعتبار (تومان)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={creditPriceToman}
+                  onChange={(e) => setCreditPriceToman(Number(e.target.value))}
+                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                  dir="ltr"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-sm font-bold">
+                  تومان
+                </span>
+              </div>
             </div>
           </div>
 
@@ -216,32 +268,41 @@ export default function FinancialTab({
           <FiInfo className="text-2xl text-amber-400" />
         </div>
 
-        <h3 className="z-10 text-lg font-bold text-white">شبیه‌ساز هزینه</h3>
+        <h3 className="z-10 text-lg font-bold text-white">شبیه‌ساز قیمت‌گذاری</h3>
         <p className="z-10 text-xs text-white/50 leading-relaxed max-w-[200px]">
-          مثال برای تولید تصویر GPT-Image-2 به ارزش پایه {gptCost} اعتبار.
+          بررسی قیمت ثبت شده به نسبت قیمت مورد انتظار پلتفرم.
         </p>
 
         <div className="z-10 w-full mt-4 space-y-3">
           <div className="flex justify-between items-center bg-slate-950/50 rounded-xl p-3 border border-white/5">
-            <span className="text-xs text-white/40">قیمت هر اعتبار:</span>
-            <span className="flex items-center gap-1 text-sm font-bold text-white/80">
-              <FiCreditCard className="text-xs text-amber-400" />
-              {creditPriceCents.toLocaleString()} cent
+            <span className="text-xs text-white/40">قیمت دستی ثبت شده:</span>
+            <span className="text-sm font-bold text-white/80">
+              {creditPriceToman.toLocaleString()} تومان
             </span>
           </div>
           <div className="flex justify-between items-center bg-slate-950/50 rounded-xl p-3 border border-white/5">
-            <span className="text-xs text-white/40">هزینه خام (تومان):</span>
+            <span className="text-xs text-white/40">قیمت مورد انتظار (محاسبه شده):</span>
             <span className="text-sm font-bold text-white/80">
-              {Math.round(baseCostToman).toLocaleString()}
+              {Math.round(expectedTomanPrice).toLocaleString()} تومان
             </span>
           </div>
-          <div className="flex justify-between items-center bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20">
-            <span className="text-xs text-emerald-400/80">
-              هزینه کاربر (تومان):
+          
+          <div className={`flex justify-between items-center rounded-xl p-3 border ${isProfitable ? "bg-emerald-500/10 border-emerald-500/20" : "bg-rose-500/10 border-rose-500/20"}`}>
+            <span className={`text-[10px] sm:text-xs ${isProfitable ? "text-emerald-400/80" : "text-rose-400/80"}`}>
+              وضعیت قیمت‌گذاری:
             </span>
-            <span className="text-lg font-black text-emerald-400">
-              {Math.round(userCostToman).toLocaleString()}
+            <span className={`text-xs sm:text-sm font-black ${isProfitable ? "text-emerald-400" : "text-rose-400"}`}>
+              {isProfitable ? "سودآور / استاندارد" : "کمتر از حد انتظار (زیان)"}
             </span>
+          </div>
+
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <p className="text-[10px] text-white/40 mb-2">هزینه نهایی کاربر (مثال برای 2K = {gptCosts.res2K} اعتبار):</p>
+            <div className="flex justify-center items-center bg-white/5 rounded-xl p-3 border border-white/10">
+              <span className="text-xl font-black text-amber-400">
+                {Math.round(creditPriceToman * gptCosts.res2K).toLocaleString()} تومان
+              </span>
+            </div>
           </div>
         </div>
       </div>

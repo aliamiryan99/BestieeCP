@@ -36,6 +36,7 @@ import {
   FiTrash2,
   FiUsers,
   FiSearch,
+  FiList,
 } from "react-icons/fi";
 
 const LocationPicker = dynamic(() => import("@/components/profile/LocationPicker"), { ssr: false });
@@ -44,10 +45,10 @@ const MAIN_DOMAIN = "bestiee.ir";
 // ─── Step indicator config ────────────────────────────────────────────────────
 const STEPS = [
   { key: "basic", label: "اطلاعات اصلی", icon: <FiHash /> },
-  { key: "content", label: "محتوای سایت", icon: <FiLayout /> },
-  { key: "location", label: "محتوای ضروری", icon: <FiMapPin /> },
+  { key: "content", label: "محتوای سایت و شعبه", icon: <FiLayout /> },
   { key: "settings", label: "تنظیمات و شبکه‌ها", icon: <FiSettings /> },
   { key: "members", label: "مدیران و پرسنل", icon: <FiUsers /> },
+  { key: "services", label: "خدمات و مدل‌ها", icon: <FiList /> },
 ] as const;
 
 
@@ -128,9 +129,16 @@ export default function NewTenantPage() {
   const [owners, setOwners] = useState<MemberState[]>([{ type: "new", newUser: { ...EMPTY_NEW_USER } }]);
   const [staff, setStaff] = useState<MemberState[]>([]);
 
+
+  // ── Step 5: Services & Models ───────────────────────────────────────
+  const [tenantServices, setTenantServices] = useState<Array<{ serviceId: string, modelId?: string, price: number, duration: number }>>([]);
+  const servicesQuery = useQuery(api.services.adminServices.listServices, { tenantType: type });
+
   // ── UI State ────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [fetchingAddress, setFetchingAddress] = useState(false);
 
   // Validation per step
   const validateStep = (step: number): Record<string, string> => {
@@ -143,11 +151,11 @@ export default function NewTenantPage() {
       if (!title.trim()) errs.title = "عنوان سایت الزامی است";
       if (!cityId) errs.cityId = "انتخاب شهر الزامی است";
     }
-    if (step === 2) {
+    if (step === 1) {
       if (!location) errs.location = "تعیین موقعیت مکانی اجباری است";
       if (!certificateFile && !certificatePreview) errs.certificate = "آپلود تصویر مجوز اجباری است";
     }
-    if (step === 4) {
+    if (step === 3) {
       if (owners.length === 0) errs.owners = "حداقل یک مدیر برای شعبه الزامی است";
       owners.forEach((o, i) => {
         if (o.type === "new") {
@@ -228,9 +236,9 @@ export default function NewTenantPage() {
     }
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
-      if (allErrors.name || allErrors.subdomain || allErrors.title) setCurrentStep(0);
-      else if (allErrors.location || allErrors.certificate) setCurrentStep(2);
-      else if (allErrors.owners || allErrors.staff) setCurrentStep(4);
+      if (allErrors.name || allErrors.subdomain || allErrors.title || allErrors.cityId) setCurrentStep(0);
+      else if (allErrors.location || allErrors.certificate) setCurrentStep(1);
+      else if (allErrors.owners || allErrors.staff) setCurrentStep(3);
       return;
     }
 
@@ -294,6 +302,12 @@ export default function NewTenantPage() {
         })),
         owners: owners.map(mapMember),
         staff: staff.map(mapMember),
+        tenantServices: tenantServices.map(ts => ({
+          serviceId: ts.serviceId as any,
+          modelId: ts.modelId as any,
+          price: ts.price,
+          duration: ts.duration,
+        })),
       };
 
       await createTenant(payload);
@@ -303,6 +317,40 @@ export default function NewTenantPage() {
       pushToast({ type: "error", title: "خطا", message: sanitizeError(e) });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleFetchAddress = async () => {
+    if (!location) {
+      pushToast({ type: "error", title: "خطا", message: "ابتدا یک موقعیت روی نقشه انتخاب کنید." });
+      return;
+    }
+
+    setFetchingAddress(true);
+    try {
+      const { lat, lng } = location;
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=fa`
+      );
+      const data = await response.json();
+
+      if (data && data.address) {
+        const addr = data.address;
+        const parts = [];
+
+        // Build address hierarchy
+        if (addr.country) parts.push(addr.country);
+        if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+        if (addr.suburb || addr.neighbourhood || addr.district) parts.push(addr.suburb || addr.neighbourhood || addr.district);
+        if (addr.road) parts.push(addr.road);
+
+        const formattedAddress = parts.join(" ، ");
+        setAddress(formattedAddress || data.display_name);
+      }
+    } catch (err: any) {
+      pushToast({ type: "error", title: "خطا", message: "خطا در دریافت آدرس از نقشه!" });
+    } finally {
+      setFetchingAddress(false);
     }
   };
 
@@ -503,214 +551,172 @@ export default function NewTenantPage() {
                   placeholder="۰۲۱-۱۲۳۴۵۶۷۸"
                   dir="ltr"
                 />
-                <InputField
-                  label="آدرس شعبه"
-                  icon={<FiMapPin />}
-                  value={address}
-                  onChange={setAddress}
-                  placeholder="آدرس کامل محل شعبه"
-                />
               </div>
             </div>
           )}
 
-          {/* ── Step 1: Content ─────────────────────────── */}
+          {/* ── Step 1: Content & Essential ──────────────── */}
           {currentStep === 1 && (
-            <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/20">
-                  <FiLayout className="text-lg text-violet-400" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">محتوای صفحه اصلی</h2>
-                  <p className="text-xs text-white/40">عنوان هیرو و متن درباره ما</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-5">
-                <InputField
-                  label="عنوان هیرو (عنوان بزرگ بالای سایت)"
-                  icon={<FiType />}
-                  value={heroTitle}
-                  onChange={setHeroTitle}
-                  placeholder="مثلاً: آرایشگاه رویال - همه روزه در خدمت شما"
-                />
-                <InputField
-                  label="زیرعنوان هیرو"
-                  icon={<FiFileText />}
-                  value={heroSubTitle}
-                  onChange={setHeroSubTitle}
-                  placeholder="توضیح کوتاه زیر عنوان اصلی"
-                />
-                <TextareaField
-                  label="متن درباره ما"
-                  icon={<FiFileText />}
-                  value={aboutUsText}
-                  onChange={setAboutUsText}
-                  placeholder="معرفی کامل آرایشگاه برای بخش درباره ما..."
-                  rows={5}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 2: Essential Content ──────────── */}
-          {currentStep === 2 && (
             <div className="flex flex-col gap-6">
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-                <div className="mb-2 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500/20 to-rose-500/20 border border-fuchsia-500/20">
-                    <FiLayout className="text-lg text-fuchsia-300" />
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/20">
+                    <FiLayout className="text-lg text-violet-400" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white">محتوای ضروری</h2>
-                    <p className="text-xs text-white/40">موقعیت، مجوز و تصاویر اصلی معرفی شعبه</p>
+                    <h2 className="text-lg font-bold text-white">محتوای سایت و شعبه</h2>
+                    <p className="text-xs text-white/40">موقعیت مکانی، تصاویر و محتوای صفحات</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Location */}
-              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/20">
-                    <FiMapPin className="text-lg text-emerald-400" />
+                {/* Location */}
+                <div className="mb-6">
+                  <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="text-sm font-bold text-white flex items-center gap-2">
+                        موقعیت مکانی
+                        <span className="text-rose-400">*</span>
+                      </label>
+                      <p className="text-xs text-white/40 mt-1">موقعیت دقیق شعبه روی نقشه</p>
+                    </div>
+                    {location && (
+                      <span className="text-xs font-mono text-white/30">
+                        {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <h2 className="text-lg font-bold text-white">
-                      موقعیت مکانی
-                      <span className="text-rose-400 text-sm mr-1">*</span>
-                    </h2>
-                    <p className="text-xs text-white/40">موقعیت دقیق شعبه روی نقشه</p>
-                  </div>
-                  {location && (
-                    <span className="text-xs font-mono text-white/30">
-                      {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-                    </span>
+
+                  <LocationPicker value={location} onChange={setLocation} />
+                  {errors.location && (
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+                      <FiAlertCircle />
+                      {errors.location}
+                    </div>
                   )}
                 </div>
 
-                <LocationPicker value={location} onChange={setLocation} />
-                {errors.location && (
-                  <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300">
-                    <FiAlertCircle />
-                    {errors.location}
+                {/* Address Auto-fill */}
+                <div className="mb-6">
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="block text-xs font-bold text-white/50">
+                      <FiMapPin className="inline ml-1" />
+                      آدرس کامل شعبه
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleFetchAddress}
+                      disabled={fetchingAddress || !location}
+                      className="cursor-pointer text-[10px] font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {fetchingAddress ? <FiLoader className="animate-spin text-xs" /> : <FiMapPin className="text-xs" />}
+                      دریافت از نقشه
+                    </button>
                   </div>
-                )}
+                  <textarea
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="آدرس کامل را وارد کنید یا از نقشه دریافت کنید"
+                    rows={2}
+                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-500/40 focus:bg-white/8 placeholder:text-white/20"
+                  />
+                </div>
+
+                {/* Hero and About Us */}
+                <div className="flex flex-col gap-5 mt-6 border-t border-white/10 pt-6">
+                  <InputField
+                    label="عنوان هیرو (عنوان بزرگ بالای سایت)"
+                    icon={<FiType />}
+                    value={heroTitle}
+                    onChange={setHeroTitle}
+                    placeholder="مثلاً: آرایشگاه رویال - همه روزه در خدمت شما"
+                  />
+                  <InputField
+                    label="زیرعنوان هیرو"
+                    icon={<FiFileText />}
+                    value={heroSubTitle}
+                    onChange={setHeroSubTitle}
+                    placeholder="توضیح کوتاه زیر عنوان اصلی"
+                  />
+                  <TextareaField
+                    label="متن درباره ما"
+                    icon={<FiFileText />}
+                    value={aboutUsText}
+                    onChange={setAboutUsText}
+                    placeholder="معرفی کامل آرایشگاه برای بخش درباره ما..."
+                    rows={5}
+                  />
+                </div>
               </div>
 
-              {/* Certificate */}
+              {/* Images */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
                 <div className="mb-6 flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
                     <FiImage className="text-lg text-amber-400" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white">
+                    <h2 className="text-lg font-bold text-white">تصاویر شعبه و مجوز</h2>
+                    <p className="text-xs text-white/40">بارگذاری تصاویر لازم برای سایت</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-5">
+                  <div>
+                    <label className="mb-2 block text-xs font-bold text-white/50">
                       تصویر مجوز فعالیت
                       <span className="text-rose-400 text-sm mr-1">*</span>
-                    </h2>
-                    <p className="text-xs text-white/40">تصویر پروانه کسب یا مجوز بهداشت</p>
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => certInputRef.current?.click()}
-                  className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-8 transition-all ${certificatePreview
-                    ? "border-emerald-500/30 bg-emerald-500/5"
-                    : errors.certificate
-                      ? "border-rose-500/40 bg-rose-500/5"
-                      : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
-                    }`}
-                >
-                  {certificatePreview ? (
-                    <div className="relative">
-                      <img
-                        src={certificatePreview}
-                        alt="Certificate preview"
-                        className="max-h-48 rounded-xl border border-white/10 shadow-lg"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCertificateFile(null);
-                          setCertificatePreview(null);
-                        }}
-                        className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
-                      >
-                        <FiX />
-                      </button>
-                      <p className="mt-3 text-xs text-emerald-400 text-center">
-                        <FiCheck className="inline ml-1" />
-                        تصویر مجوز انتخاب شد
-                      </p>
+                    </label>
+                    <div
+                      onClick={() => certInputRef.current?.click()}
+                      className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 transition-all h-[200px] ${certificatePreview
+                        ? "border-emerald-500/30 bg-emerald-500/5"
+                        : errors.certificate
+                          ? "border-rose-500/40 bg-rose-500/5"
+                          : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
+                        }`}
+                    >
+                      {certificatePreview ? (
+                        <div className="relative h-full flex items-center justify-center">
+                          <img
+                            src={certificatePreview}
+                            alt="Certificate preview"
+                            className="max-h-[150px] rounded-xl shadow-lg"
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCertificateFile(null);
+                              setCertificatePreview(null);
+                            }}
+                            className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
+                          >
+                            <FiX />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+                            <FiCamera className="text-xl text-white/30" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-white/50">انتخاب تصویر</p>
+                            <p className="text-[10px] text-white/25 mt-1">PNG, JPG تا ۵ مگابایت</p>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-                        <FiCamera className="text-2xl text-white/30" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-white/50">تصویر مجوز را انتخاب کنید</p>
-                        <p className="text-[10px] text-white/25 mt-1">PNG, JPG تا ۵ مگابایت</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <input
-                  ref={certInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCertificateChange}
-                  className="hidden"
-                />
-
-                {errors.certificate && (
-                  <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300">
-                    <FiAlertCircle />
-                    {errors.certificate}
+                    <input
+                      ref={certInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCertificateChange}
+                      className="hidden"
+                    />
+                    {errors.certificate && (
+                      <p className="mt-2 text-xs text-rose-400">{errors.certificate}</p>
+                    )}
                   </div>
-                )}
-              </div>
 
-              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/20 to-cyan-500/20 border border-sky-500/20">
-                    <FiImage className="text-lg text-sky-300" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">تصاویر معرفی شعبه</h2>
-                    <p className="text-xs text-white/40">فضای داخلی، نمای بیرونی و تصویر تیم</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-                  <ImageUploadCard
-                    title="تصویر فضای داخلی"
-                    description="نمایی از فضای داخل شعبه"
-                    preview={interiorPreview}
-                    onTrigger={() => interiorInputRef.current?.click()}
-                    onRemove={() => {
-                      setInteriorFile(null);
-                      setInteriorPreview(null);
-                    }}
-                    inputRef={interiorInputRef}
-                    onChange={handleInteriorChange}
-                    error={errors.interior}
-                  />
-                  <ImageUploadCard
-                    title="تصویر نمای بیرونی"
-                    description="ورودی یا نمای بیرون شعبه"
-                    preview={outsidePreview}
-                    onTrigger={() => outsideInputRef.current?.click()}
-                    onRemove={() => {
-                      setOutsideFile(null);
-                      setOutsidePreview(null);
-                    }}
-                    inputRef={outsideInputRef}
-                    onChange={handleOutsideChange}
-                    error={errors.outside}
-                  />
                   <ImageUploadCard
                     title="تصویر تیم"
                     description="یک تصویر از اعضای تیم شعبه"
@@ -724,13 +730,41 @@ export default function NewTenantPage() {
                     onChange={handleTeamChange}
                     error={errors.team}
                   />
+
+                  <ImageUploadCard
+                    title="تصویر فضای داخلی"
+                    description="نمایی از فضای داخل شعبه"
+                    preview={interiorPreview}
+                    onTrigger={() => interiorInputRef.current?.click()}
+                    onRemove={() => {
+                      setInteriorFile(null);
+                      setInteriorPreview(null);
+                    }}
+                    inputRef={interiorInputRef}
+                    onChange={handleInteriorChange}
+                    error={errors.interior}
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر نمای بیرونی"
+                    description="ورودی یا نمای بیرون شعبه"
+                    preview={outsidePreview}
+                    onTrigger={() => outsideInputRef.current?.click()}
+                    onRemove={() => {
+                      setOutsideFile(null);
+                      setOutsidePreview(null);
+                    }}
+                    inputRef={outsideInputRef}
+                    onChange={handleOutsideChange}
+                    error={errors.outside}
+                  />
                 </div>
               </div>
             </div>
           )}
 
-          {/* ── Step 3: Settings & Socials ──────────────── */}
-          {currentStep === 3 && (
+          {/* ── Step 2: Settings & Socials ──────────────── */}
+          {currentStep === 2 && (
             <div className="flex flex-col gap-6">
               {/* Social links */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
@@ -939,8 +973,8 @@ export default function NewTenantPage() {
               </div>
             </div>
           )}
-          {/* ── Step 4: Members ─────────────────────────── */}
-          {currentStep === 4 && (
+          {/* ── Step 3: Members ──────────────────────────── */}
+          {currentStep === 3 && (
             <div className="flex flex-col gap-8">
               {/* Owners Section */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
@@ -1035,6 +1069,46 @@ export default function NewTenantPage() {
                     ))
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+          {/* ── Step 4: Services & Models ──────────────────────────── */}
+          {currentStep === 4 && (
+            <div className="flex flex-col gap-8">
+              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 border border-indigo-500/20">
+                      <FiList className="text-lg text-indigo-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white">خدمات و مدل‌های شعبه</h2>
+                      <p className="text-xs text-white/40">خدماتی که این شعبه ارائه می‌دهد را انتخاب کنید. این خدمات به صورت خودکار به پرسنل اختصاص داده می‌شود.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {!servicesQuery ? (
+                  <div className="flex items-center justify-center py-12">
+                    <FiLoader className="animate-spin text-3xl text-white/30" />
+                  </div>
+                ) : servicesQuery.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-8 rounded-2xl border border-dashed border-white/10 bg-white/2">
+                    <FiList className="text-3xl text-white/10 mb-2" />
+                    <p className="text-sm text-white/20">هیچ خدمتی برای این نوع شعبه یافت نشد</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {servicesQuery.map((service: any) => (
+                      <ServiceSelectionCard
+                        key={service._id}
+                        service={service}
+                        tenantServices={tenantServices}
+                        setTenantServices={setTenantServices}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1447,6 +1521,270 @@ function ImageUploadCard({
         <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300">
           <FiAlertCircle />
           {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServiceSelectionCard({
+  service,
+  tenantServices,
+  setTenantServices
+}: {
+  service: any;
+  tenantServices: Array<{ serviceId: string, modelId?: string, price: number, duration: number }>;
+  setTenantServices: React.Dispatch<React.SetStateAction<Array<{ serviceId: string, modelId?: string, price: number, duration: number }>>>;
+}) {
+  const modelsQuery = useQuery(api.services.adminServices.listModels, service.hasModels ? { serviceId: service._id } : "skip");
+  const [expanded, setExpanded] = useState(false);
+
+  const isServiceSelected = tenantServices.some(ts => ts.serviceId === service._id && !ts.modelId);
+  const selectedModelsCount = tenantServices.filter(ts => ts.serviceId === service._id && ts.modelId).length;
+
+  const toggleService = () => {
+    if (isServiceSelected) {
+      setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && !ts.modelId)));
+    } else {
+      setTenantServices(prev => [...prev, { serviceId: service._id, price: 0, duration: 30 }]);
+    }
+  };
+
+  const toggleModel = (modelId: string) => {
+    const isModelSelected = tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === modelId);
+    if (isModelSelected) {
+      setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && ts.modelId === modelId)));
+    } else {
+      setTenantServices(prev => [...prev, { serviceId: service._id, modelId, price: 0, duration: 30 }]);
+    }
+  };
+
+  const updatePriceDuration = (modelId: string | undefined, field: "price" | "duration", value: number) => {
+    setTenantServices(prev => prev.map(ts => {
+      if (ts.serviceId === service._id && ts.modelId === modelId) {
+        return { ...ts, [field]: value };
+      }
+      return ts;
+    }));
+  };
+
+  const groupedModels = useMemo(() => {
+    if (!modelsQuery) return null;
+    const groups: Record<string, any[]> = {};
+    modelsQuery.forEach((model: any) => {
+      const gName = model.groupName || "سایر مدل‌ها";
+      if (!groups[gName]) {
+        groups[gName] = [];
+      }
+      groups[gName].push(model);
+    });
+    return groups;
+  }, [modelsQuery]);
+
+  return (
+    <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
+      isServiceSelected || selectedModelsCount > 0
+        ? "border-indigo-500/30 shadow-lg shadow-indigo-500/10"
+        : "border-white/10"
+    }`}>
+      {/* ── Service Header ───────────────────────────────────────────── */}
+      <div
+        className={`flex items-center justify-between p-4 cursor-pointer transition-colors duration-200 ${
+          isServiceSelected || selectedModelsCount > 0
+            ? "bg-indigo-500/10"
+            : "bg-white/3 hover:bg-white/6"
+        }`}
+        onClick={() => service.hasModels ? setExpanded(!expanded) : toggleService()}
+      >
+        <div className="flex items-center gap-4">
+          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-white/10 to-white/5 overflow-hidden border border-white/10">
+            {service.imageUrl ? (
+              <img src={service.imageUrl} alt={service.name} className="h-full w-full object-cover" />
+            ) : (
+              <FiList className="text-white/30 text-xl" />
+            )}
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white">{service.name}</h3>
+            {service.hasModels ? (
+              <div className="flex items-center gap-2 mt-1">
+                {selectedModelsCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-0.5 text-[11px] font-bold text-indigo-300">
+                    <FiCheck className="text-[10px]" />
+                    {selectedModelsCount} مدل انتخاب شده
+                  </span>
+                ) : (
+                  <span className="text-xs text-white/35">برای انتخاب مدل‌ها کلیک کنید</span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-white/40 mt-1">خدمت ساده بدون مدل</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {!service.hasModels && (
+            <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+              isServiceSelected
+                ? "border-indigo-500 bg-indigo-500 shadow-md shadow-indigo-500/30"
+                : "border-white/20 bg-transparent hover:border-white/40"
+            }`}>
+              {isServiceSelected && <FiCheck className="text-white text-xs" />}
+            </div>
+          )}
+          {service.hasModels && (
+            <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-300 ${
+              expanded ? "bg-indigo-500/20 rotate-90" : "bg-white/5 hover:bg-white/10"
+            }`}>
+              <FiArrowLeft className={`text-sm transition-colors ${expanded ? "text-indigo-300" : "text-white/40"}`} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Simple service price/duration (no models) ────────────────── */}
+      {!service.hasModels && isServiceSelected && (
+        <div className="px-5 py-4 border-t border-white/10 bg-gradient-to-br from-indigo-500/5 to-transparent grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-[11px] font-bold text-indigo-300/70 mb-1.5 block">قیمت (تومان)</label>
+            <input
+              type="number"
+              value={tenantServices.find(ts => ts.serviceId === service._id && !ts.modelId)?.price || 0}
+              onChange={(e) => updatePriceDuration(undefined, "price", Number(e.target.value))}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-white/8 transition"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-indigo-300/70 mb-1.5 block">مدت (دقیقه)</label>
+            <input
+              type="number"
+              value={tenantServices.find(ts => ts.serviceId === service._id && !ts.modelId)?.duration || 30}
+              onChange={(e) => updatePriceDuration(undefined, "duration", Number(e.target.value))}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-white/8 transition"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Models card grid ─────────────────────────────────────────── */}
+      {service.hasModels && expanded && (
+        <div className="p-5 border-t border-white/10 bg-gradient-to-b from-black/30 to-black/10">
+          {!groupedModels ? (
+            <div className="flex items-center justify-center gap-3 py-10">
+              <FiLoader className="animate-spin text-2xl text-indigo-400" />
+              <span className="text-sm text-white/30">در حال بارگذاری مدل‌ها...</span>
+            </div>
+          ) : Object.keys(groupedModels).length === 0 ? (
+            <div className="text-center py-10 text-sm text-white/30">هیچ مدلی برای این خدمت یافت نشد</div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              {Object.entries(groupedModels).map(([groupName, models]) => (
+                <div key={groupName} className="flex flex-col gap-3">
+                  {/* Group header */}
+                  <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-400/80" />
+                    <h4 className="text-xs font-black text-indigo-300">{groupName}</h4>
+                    <span className="text-[10px] text-white/30 font-bold">({models.length} مدل)</span>
+                  </div>
+                  {/* Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {models.map((model: any) => {
+                      const isModelSelected = tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === model._id);
+                      const tsRecord = tenantServices.find(ts => ts.serviceId === service._id && ts.modelId === model._id);
+                      return (
+                        <div
+                          key={model._id}
+                          className={`group relative flex flex-col rounded-2xl border overflow-hidden cursor-pointer transition-all duration-200 ${
+                            isModelSelected
+                              ? "border-indigo-500/60 shadow-lg shadow-indigo-500/20 scale-[1.01]"
+                              : "border-white/8 hover:border-white/20 hover:shadow-md"
+                          }`}
+                          onClick={() => toggleModel(model._id)}
+                        >
+                          {/* Image */}
+                          <div className="relative aspect-square w-full overflow-hidden bg-gradient-to-br from-white/5 to-white/10">
+                            {model.imageUrl ? (
+                              <img
+                                src={model.imageUrl}
+                                alt={model.name}
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                <FiList className="text-3xl text-white/20" />
+                              </div>
+                            )}
+
+                            {/* Selection overlay */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
+                              isModelSelected
+                                ? "bg-indigo-500/40 backdrop-blur-[1px]"
+                                : "bg-black/0 group-hover:bg-black/20"
+                            }`}>
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+                                isModelSelected
+                                  ? "border-white bg-indigo-500 scale-110 shadow-xl"
+                                  : "border-white/40 bg-black/30 scale-0 group-hover:scale-100"
+                              }`}>
+                                <FiCheck className="text-white text-sm" />
+                              </div>
+                            </div>
+
+                            {/* Selected badge */}
+                            {isModelSelected && (
+                              <div className="absolute top-2 right-2 rounded-full bg-indigo-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
+                                ✓
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Model name */}
+                          <div className={`px-3 py-2.5 transition-colors duration-200 ${
+                            isModelSelected ? "bg-indigo-500/15" : "bg-white/3 group-hover:bg-white/6"
+                          }`}>
+                            <p className="text-xs font-bold text-white text-center leading-tight truncate">{model.name}</p>
+                            {model.nameEn && (
+                              <p className="text-[10px] text-white/30 text-center font-mono mt-0.5 truncate" dir="ltr">{model.nameEn}</p>
+                            )}
+                          </div>
+
+                          {/* Price / Duration inputs – shown when selected */}
+                          {isModelSelected && (
+                            <div
+                              className="px-3 pb-3 pt-1 bg-indigo-500/10 border-t border-indigo-500/20"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <label className="text-[9px] font-bold text-indigo-300/60 mb-1 block">قیمت (ت)</label>
+                                  <input
+                                    type="number"
+                                    value={tsRecord?.price || 0}
+                                    onChange={(e) => updatePriceDuration(model._id, "price", Number(e.target.value))}
+                                    className="w-full bg-black/20 border border-indigo-500/20 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:border-indigo-400/60 text-center"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] font-bold text-indigo-300/60 mb-1 block">مدت (دق)</label>
+                                  <input
+                                    type="number"
+                                    value={tsRecord?.duration || 30}
+                                    onChange={(e) => updatePriceDuration(model._id, "duration", Number(e.target.value))}
+                                    className="w-full bg-black/20 border border-indigo-500/20 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:border-indigo-400/60 text-center"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -9,6 +9,7 @@
  */
 
 import type * as ai_ai from "../ai/ai.js";
+import type * as ai_catalog from "../ai/catalog.js";
 import type * as ai_credit_plans from "../ai/credit_plans.js";
 import type * as ai_providers from "../ai/providers.js";
 import type * as ai_settings from "../ai/settings.js";
@@ -31,9 +32,9 @@ import type * as orders_orders from "../orders/orders.js";
 import type * as orders_payments from "../orders/payments.js";
 import type * as products_products from "../products/products.js";
 import type * as products_variants from "../products/variants.js";
-import type * as services_predefined from "../services/predefined.js";
+import type * as seedModels from "../seedModels.js";
+import type * as services_adminServices from "../services/adminServices.js";
 import type * as services_staffServices from "../services/staffServices.js";
-import type * as services_tenantServices from "../services/tenantServices.js";
 import type * as sweepers_activity from "../sweepers/activity.js";
 import type * as tenants_activityHelpers from "../tenants/activityHelpers.js";
 import type * as tenants_comments from "../tenants/comments.js";
@@ -44,6 +45,7 @@ import type * as tenants_plans from "../tenants/plans.js";
 import type * as tenants_settings from "../tenants/settings.js";
 import type * as tenants_site_content from "../tenants/site_content.js";
 import type * as tenants_tenants from "../tenants/tenants.js";
+import type * as tenants_website from "../tenants/website.js";
 import type * as testConfig from "../testConfig.js";
 import type * as testQuery from "../testQuery.js";
 import type * as uploads_upload from "../uploads/upload.js";
@@ -67,6 +69,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "ai/ai": typeof ai_ai;
+  "ai/catalog": typeof ai_catalog;
   "ai/credit_plans": typeof ai_credit_plans;
   "ai/providers": typeof ai_providers;
   "ai/settings": typeof ai_settings;
@@ -89,9 +92,9 @@ declare const fullApi: ApiFromModules<{
   "orders/payments": typeof orders_payments;
   "products/products": typeof products_products;
   "products/variants": typeof products_variants;
-  "services/predefined": typeof services_predefined;
+  seedModels: typeof seedModels;
+  "services/adminServices": typeof services_adminServices;
   "services/staffServices": typeof services_staffServices;
-  "services/tenantServices": typeof services_tenantServices;
   "sweepers/activity": typeof sweepers_activity;
   "tenants/activityHelpers": typeof tenants_activityHelpers;
   "tenants/comments": typeof tenants_comments;
@@ -102,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   "tenants/settings": typeof tenants_settings;
   "tenants/site_content": typeof tenants_site_content;
   "tenants/tenants": typeof tenants_tenants;
+  "tenants/website": typeof tenants_website;
   testConfig: typeof testConfig;
   testQuery: typeof testQuery;
   "uploads/upload": typeof uploads_upload;

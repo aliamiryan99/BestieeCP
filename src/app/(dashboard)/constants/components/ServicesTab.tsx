@@ -120,7 +120,14 @@ function GroupsList({ tenantType, onBack }: { tenantType: TenantType, onBack: ()
                   <FiFolder className="text-xl" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-lg font-bold text-white">{group.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-lg font-bold text-white">{group.name}</h3>
+                    {group.independent && (
+                      <span className="rounded-md bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold text-purple-300 ring-1 ring-purple-500/30">
+                        مستقل
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-sm text-white/50">{group.enName || "بدون نام انگلیسی"}</p>
                   <p className="mt-2 truncate text-xs font-bold text-purple-200/80">
                     خدمت: {group.serviceName || "بدون خدمت"}
@@ -261,6 +268,7 @@ function ServicesList({ tenantType, onSelectService, onManageGroups }: { tenantT
         <ServiceModal
           tenantType={tenantType}
           initialData={editingService}
+          allServices={services || []}
           onClose={() => setIsModalOpen(false)}
         />
       )}
@@ -400,6 +408,7 @@ function GroupModal({ tenantType, services, initialData, onClose }: { tenantType
   const [serviceId, setServiceId] = useState<Id<"services"> | "">(initialData?.serviceId || services[0]?._id || "");
   const [name, setName] = useState(initialData?.name || "");
   const [enName, setEnName] = useState(initialData?.enName || "");
+  const [independent, setIndependent] = useState(initialData?.independent || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pushToast = useToastStore((s) => s.push);
@@ -419,6 +428,7 @@ function GroupModal({ tenantType, services, initialData, onClose }: { tenantType
           serviceId,
           name,
           enName: enName || undefined,
+          independent,
         });
         pushToast({ type: "success", title: "موفق", message: "گروه بروزرسانی شد" });
       } else {
@@ -427,6 +437,7 @@ function GroupModal({ tenantType, services, initialData, onClose }: { tenantType
           serviceId,
           name,
           enName: enName || undefined,
+          independent,
         });
         pushToast({ type: "success", title: "موفق", message: "گروه با موفقیت ایجاد شد" });
       }
@@ -490,6 +501,17 @@ function GroupModal({ tenantType, services, initialData, onClose }: { tenantType
             </div>
           </div>
 
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-col">
+              <span className="font-bold text-white">انتخاب مستقل (Independent)</span>
+              <span className="text-xs text-white/50">آیا این گروه مدل می‌تواند به صورت مستقل از سایر گروه‌های این خدمت انتخاب شود؟</span>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input type="checkbox" className="peer sr-only" checked={independent} onChange={(e) => setIndependent(e.target.checked)} />
+              <div className="peer h-6 w-11 rounded-full bg-slate-700 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-purple-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
+            </label>
+          </div>
+
           <div className="mt-2 flex items-center justify-end gap-3 border-t border-white/10 pt-5 shrink-0">
             <button type="button" onClick={onClose} disabled={isSubmitting} className="cursor-pointer rounded-xl px-5 py-2.5 text-sm font-bold text-white/60 hover:bg-white/5 hover:text-white transition">
               انصراف
@@ -504,11 +526,13 @@ function GroupModal({ tenantType, services, initialData, onClose }: { tenantType
   );
 }
 
-function ServiceModal({ tenantType, initialData, onClose }: { tenantType: TenantType, initialData: any, onClose: () => void }) {
+function ServiceModal({ tenantType, initialData, allServices, onClose }: { tenantType: TenantType, initialData: any, allServices: any[], onClose: () => void }) {
   const [name, setName] = useState(initialData?.name || "");
   const [enName, setEnName] = useState(initialData?.enName || "");
   const [description, setDescription] = useState(initialData?.description || "");
   const [hasModels, setHasModels] = useState(initialData?.hasModels || false);
+  const [isSutibleForAI, setIsSutibleForAI] = useState(initialData?.isSutibleForAI ?? true);
+  const [overlapingServies, setOverlapingServies] = useState<string[]>(initialData?.overlapingServies || []);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -545,6 +569,8 @@ function ServiceModal({ tenantType, initialData, onClose }: { tenantType: Tenant
           description: description || undefined,
           hasModels,
           imageId,
+          isSutibleForAI,
+          overlapingServies: overlapingServies,
         });
         pushToast({ type: "success", title: "موفق", message: "خدمت بروزرسانی شد" });
       } else {
@@ -555,6 +581,8 @@ function ServiceModal({ tenantType, initialData, onClose }: { tenantType: Tenant
           description: description || undefined,
           hasModels,
           imageId,
+          isSutibleForAI,
+          overlapingServies: overlapingServies,
         });
         pushToast({ type: "success", title: "موفق", message: "خدمت با موفقیت ایجاد شد" });
       }
@@ -620,6 +648,47 @@ function ServiceModal({ tenantType, initialData, onClose }: { tenantType: Tenant
               <div className="peer h-6 w-11 rounded-full bg-slate-700 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
             </label>
           </div>
+
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-col">
+              <span className="font-bold text-white">مناسب برای پنل هوش مصنوعی</span>
+              <span className="text-xs text-white/50">آیا این خدمت قابلیت استفاده و نمایش در پنل هوش مصنوعی را دارد؟</span>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input type="checkbox" className="peer sr-only" checked={isSutibleForAI} onChange={(e) => setIsSutibleForAI(e.target.checked)} />
+              <div className="peer h-6 w-11 rounded-full bg-slate-700 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-purple-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-white/80">تداخل با سایر خدمات (Overlapping Services)</label>
+            <p className="text-xs text-white/50">خدماتی که امکان انجام همزمان آنها با این خدمت وجود ندارد را انتخاب کنید.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto rounded-2xl border border-white/10 bg-white/5 p-3 custom-scrollbar">
+              {allServices.filter(s => s._id !== initialData?._id).map(service => (
+                <label key={service._id} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-2 rounded-xl transition">
+                  <input
+                    type="checkbox"
+                    checked={overlapingServies.includes(service._id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setOverlapingServies(prev => [...prev, service._id]);
+                      } else {
+                        setOverlapingServies(prev => prev.filter(id => id !== service._id));
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-white/20 bg-slate-800 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900"
+                  />
+                  <span className="text-sm text-white/80 select-none truncate">
+                    {service.name} {service.enName ? `(${service.enName})` : ""}
+                  </span>
+                </label>
+              ))}
+              {allServices.filter(s => s._id !== initialData?._id).length === 0 && (
+                <span className="text-sm text-white/50 col-span-2 text-center py-2">خدمت دیگری برای انتخاب وجود ندارد.</span>
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2">
             <label className="text-sm font-bold text-white/80">تصویر خدمت</label>
             <input
@@ -657,6 +726,7 @@ function ModelModal({ tenantType, serviceId, initialData, onClose }: { tenantTyp
   const [maintenanceLevel, setMaintenanceLevel] = useState(initialData?.maintenanceLevel || "");
   const [tips, setTips] = useState(initialData?.tips || "");
   const [promptDesc, setPromptDesc] = useState(initialData?.promptDesc || "");
+  const [isSutibleForAI, setIsSutibleForAI] = useState(initialData?.isSutibleForAI ?? true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -697,6 +767,7 @@ function ModelModal({ tenantType, serviceId, initialData, onClose }: { tenantTyp
         maintenanceLevel: maintenanceLevel || undefined,
         tips: tips || undefined,
         promptDesc: promptDesc || undefined,
+        isSutibleForAI,
         imageId,
       };
 
@@ -807,25 +878,24 @@ function ModelModal({ tenantType, serviceId, initialData, onClose }: { tenantTyp
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-bold text-white/80">شرایط</label>
+              <label className="text-sm font-bold text-white/80">مناسب برای</label>
               <input
                 type="text"
-                value={conditions}
-                onChange={(e) => setConditions(e.target.value)}
+                value={suitableFor}
+                onChange={(e) => setSuitableFor(e.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                placeholder="مثال: موهای ضخیم و صاف"
+                placeholder="مثال: محیط‌های رسمی"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-white/80">مناسب برای</label>
-            <input
-              type="text"
-              value={suitableFor}
-              onChange={(e) => setSuitableFor(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-              placeholder="مثال: محیط‌های رسمی"
+            <label className="text-sm font-bold text-white/80">شرایط</label>
+            <textarea
+              value={conditions}
+              onChange={(e) => setConditions(e.target.value)}
+              className="w-full min-h-[100px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-y"
+              placeholder="مثال: موهای ضخیم و صاف"
             />
           </div>
 
@@ -858,6 +928,17 @@ function ModelModal({ tenantType, serviceId, initialData, onClose }: { tenantTyp
               className="w-full min-h-[80px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-none"
               placeholder="توضیحاتی درباره این مدل بنویسید..."
             />
+          </div>
+
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-col">
+              <span className="font-bold text-white">مناسب برای پنل هوش مصنوعی</span>
+              <span className="text-xs text-white/50">آیا این مدل قابلیت استفاده و نمایش در پنل هوش مصنوعی را دارد؟</span>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input type="checkbox" className="peer sr-only" checked={isSutibleForAI} onChange={(e) => setIsSutibleForAI(e.target.checked)} />
+              <div className="peer h-6 w-11 rounded-full bg-slate-700 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-purple-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
+            </label>
           </div>
 
           <div className="flex flex-col gap-2">

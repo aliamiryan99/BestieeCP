@@ -9,6 +9,7 @@
  */
 
 import type * as ai_ai from "../ai/ai.js";
+import type * as ai_archiveResults from "../ai/archiveResults.js";
 import type * as ai_catalog from "../ai/catalog.js";
 import type * as ai_credit_plans from "../ai/credit_plans.js";
 import type * as ai_providers from "../ai/providers.js";
@@ -35,6 +36,7 @@ import type * as products_variants from "../products/variants.js";
 import type * as seedModels from "../seedModels.js";
 import type * as services_adminServices from "../services/adminServices.js";
 import type * as services_staffServices from "../services/staffServices.js";
+import type * as support from "../support.js";
 import type * as sweepers_activity from "../sweepers/activity.js";
 import type * as tenants_activityHelpers from "../tenants/activityHelpers.js";
 import type * as tenants_comments from "../tenants/comments.js";
@@ -69,6 +71,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "ai/ai": typeof ai_ai;
+  "ai/archiveResults": typeof ai_archiveResults;
   "ai/catalog": typeof ai_catalog;
   "ai/credit_plans": typeof ai_credit_plans;
   "ai/providers": typeof ai_providers;
@@ -95,6 +98,7 @@ declare const fullApi: ApiFromModules<{
   seedModels: typeof seedModels;
   "services/adminServices": typeof services_adminServices;
   "services/staffServices": typeof services_staffServices;
+  support: typeof support;
   "sweepers/activity": typeof sweepers_activity;
   "tenants/activityHelpers": typeof tenants_activityHelpers;
   "tenants/comments": typeof tenants_comments;

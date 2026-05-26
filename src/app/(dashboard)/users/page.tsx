@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FiSearch,
@@ -25,6 +25,8 @@ import {
   FiUserX,
   FiSlash,
   FiHome,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 import LevelCircle from "@/components/profile/LevelCircle";
 import { useQuery } from "convex/react";
@@ -164,8 +166,8 @@ function UserRow({ user, selected, onClick, cityName }: { user: EnrichedUser; se
     <div
       onClick={onClick}
       className={`cursor-pointer group flex items-center gap-4 rounded-2xl border px-4 py-3 transition-all duration-200 ${selected
-          ? "border-orange-500/30 bg-orange-500/8 shadow-lg shadow-orange-500/5"
-          : "border-white/5 bg-white/3 hover:bg-white/6 hover:border-white/10"
+        ? "border-orange-500/30 bg-orange-500/8 shadow-lg shadow-orange-500/5"
+        : "border-white/5 bg-white/3 hover:bg-white/6 hover:border-white/10"
         }`}
     >
       {/* Avatar */}
@@ -334,8 +336,8 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
     <button
       onClick={onClick}
       className={`cursor-pointer rounded-2xl border px-4 py-1.5 text-xs font-bold transition-all duration-200 ${active
-          ? "border-orange-500/40 bg-orange-500/15 text-orange-300 shadow shadow-orange-500/10"
-          : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
+        ? "border-orange-500/40 bg-orange-500/15 text-orange-300 shadow shadow-orange-500/10"
+        : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
         }`}
     >
       {label}
@@ -361,6 +363,8 @@ function RowSkeleton() {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+const ITEMS_PER_PAGE = 10;
+
 export default function UsersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -386,6 +390,11 @@ export default function UsersPage() {
     const s = searchParams.get("since");
     return s ? Number(s) : null;
   });
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, roleFilter, statusFilter, genderFilter, sinceFilter]);
 
   const users = rawUsers as EnrichedUser[] | undefined;
 
@@ -414,6 +423,12 @@ export default function UsersPage() {
     return list;
   }, [users, search, roleFilter, statusFilter, genderFilter, cityMap, sinceFilter]);
 
+  // ── Slicing for Pagination ──────────────────────────────────────────────────
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPage]);
+
   // ── Summary Stats ─────────────────────────────────────────────────────
   const stats = useMemo(() => {
     if (!users) return null;
@@ -428,6 +443,34 @@ export default function UsersPage() {
       promoters: users.filter(u => u.role === "promoter").length,
     };
   }, [users]);
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const rangeStart = filtered.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const rangeEnd = Math.min(currentPage * ITEMS_PER_PAGE, filtered.length);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      if (currentPage > 3) {
+        pages.push("...");
+      }
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) {
+        pages.push("...");
+      }
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   const loading = me === undefined || rawUsers === undefined;
 
@@ -473,7 +516,7 @@ export default function UsersPage() {
               { label: "مشتری", value: stats.customers, color: "text-rose-300" },
               { label: "مدیر شعبه", value: stats.owners, color: "text-emerald-300" },
               { label: "پرسنل", value: stats.tenantStaff, color: "text-cyan-300" },
-              { label: "خالق/پیامبر", value: stats.creators + stats.promoters, color: "text-amber-300" },
+              { label: "پیامبر", value: stats.promoters, color: "text-amber-300" },
             ].map((s) => (
               <div key={s.label} className="flex flex-col gap-1 rounded-2xl bg-white/5 border border-white/5 px-4 py-3">
                 <span className={`text-xl font-black ${s.color}`}>{s.value}</span>
@@ -556,27 +599,27 @@ export default function UsersPage() {
           {!loading && (
             <div className="flex items-center justify-between px-1">
               <p className="text-sm text-white/40">
-                نمایش <span className="font-bold text-white">{filtered.length}</span> کاربر
+                نمایش <span className="font-bold text-white">{rangeStart} تا {rangeEnd}</span> از <span className="font-bold text-white">{filtered.length}</span> کاربر
                 {users && filtered.length !== users.length && (
-                  <span className="text-white/25"> از {users.length}</span>
+                  <span className="text-white/25"> (کل: {users.length})</span>
                 )}
-              {sinceFilter && (
-                <span className="mr-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-400 font-bold">
-                  موارد جدید
-                </span>
+                {sinceFilter && (
+                  <span className="mr-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-400 font-bold">
+                    موارد جدید
+                  </span>
+                )}
+              </p>
+              {(search || roleFilter !== "all" || statusFilter !== "all" || genderFilter !== "all" || sinceFilter) && (
+                <button
+                  onClick={() => {
+                    setSearch(""); setRoleFilter("all"); setStatusFilter("all"); setGenderFilter("all"); setSinceFilter(null);
+                    if (searchParams.toString()) router.replace("/users");
+                  }}
+                  className="cursor-pointer text-xs text-orange-400/70 hover:text-orange-300 transition"
+                >
+                  پاکسازی فیلترها
+                </button>
               )}
-            </p>
-            {(search || roleFilter !== "all" || statusFilter !== "all" || genderFilter !== "all" || sinceFilter) && (
-              <button
-                onClick={() => {
-                  setSearch(""); setRoleFilter("all"); setStatusFilter("all"); setGenderFilter("all"); setSinceFilter(null);
-                  if (searchParams.toString()) router.replace("/users");
-                }}
-                className="cursor-pointer text-xs text-orange-400/70 hover:text-orange-300 transition"
-              >
-                پاکسازی فیلترها
-              </button>
-            )}
             </div>
           )}
 
@@ -594,11 +637,11 @@ export default function UsersPage() {
                 <FiUserX className="text-2xl text-white/30" />
               </div>
               <p className="text-white/40 text-sm">کاربری با این مشخصات یافت نشد.</p>
-              <button 
-                onClick={() => { 
+              <button
+                onClick={() => {
                   setSearch(""); setRoleFilter("all"); setStatusFilter("all"); setGenderFilter("all"); setSinceFilter(null);
                   if (searchParams.toString()) router.replace("/users");
-                }} 
+                }}
                 className="cursor-pointer text-xs text-orange-400/60 hover:text-orange-300 transition"
               >
                 پاکسازی فیلترها
@@ -609,7 +652,7 @@ export default function UsersPage() {
           {/* User rows */}
           {!loading && filtered.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              {filtered.map((user) => (
+              {paginatedUsers.map((user) => (
                 <UserRow
                   key={user._id}
                   user={user}
@@ -618,6 +661,55 @@ export default function UsersPage() {
                   onClick={() => setSelectedUser(prev => prev?._id === user._id ? null : user)}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 rounded-3xl border border-white/8 bg-gradient-to-r from-slate-800/60 to-slate-900/80 p-3 shadow-lg">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="cursor-pointer flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/5 disabled:hover:text-white/70 transition-all duration-200"
+              >
+                <FiChevronRight className="text-sm" />
+                <span>قبلی</span>
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                {getPageNumbers().map((p, idx) => {
+                  if (p === "...") {
+                    return (
+                      <span key={`dots-${idx}`} className="px-2 text-xs font-bold text-white/30">
+                        ...
+                      </span>
+                    );
+                  }
+                  const pageNum = p as number;
+                  const isCurrent = pageNum === currentPage;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`cursor-pointer h-9 w-9 flex items-center justify-center rounded-2xl text-xs font-bold transition-all duration-200 ${isCurrent
+                        ? "border border-orange-500/40 bg-orange-500/15 text-orange-300 shadow shadow-orange-500/10"
+                        : "border border-transparent bg-transparent text-white/50 hover:bg-white/5 hover:text-white"
+                        }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="cursor-pointer flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/5 disabled:hover:text-white/70 transition-all duration-200"
+              >
+                <span>بعدی</span>
+                <FiChevronLeft className="text-sm" />
+              </button>
             </div>
           )}
         </div>

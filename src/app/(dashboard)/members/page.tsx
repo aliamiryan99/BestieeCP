@@ -1012,13 +1012,7 @@ export default function MembersPage() {
               color: "text-white",
               bg: "bg-white/10",
             },
-            {
-              icon: <FiShield />,
-              label: "خالقان",
-              value: totalCreators,
-              color: "text-amber-400",
-              bg: "bg-amber-500/10",
-            },
+
             {
               icon: <FiStar />,
               label: "پیامبران",
@@ -1084,7 +1078,7 @@ export default function MembersPage() {
             {totalBanned} حساب مسدود
           </span>
         )}
-        
+
         {sinceFilter && (
           <div className="mr-auto flex items-center gap-2">
             <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-400 font-bold">

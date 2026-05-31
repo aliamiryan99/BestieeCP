@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
@@ -91,6 +91,24 @@ export default function NewTenantPage() {
   // ... (previous state)
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
+  const [debouncedSubdomain, setDebouncedSubdomain] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSubdomain(subdomain.trim());
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [subdomain]);
+
+  const subdomainCheck = useQuery(
+    api.tenants.tenants.checkSubdomain,
+    debouncedSubdomain ? { subdomain: debouncedSubdomain } : "skip"
+  );
+
+  const isCheckingSubdomain = subdomain.trim() !== "" && (subdomain.trim() !== debouncedSubdomain || subdomainCheck === undefined);
   const [title, setTitle] = useState("");
   const [cityId, setCityId] = useState("");
   const [type, setType] = useState<"barbers" | "barbies">("barbers");
@@ -145,9 +163,17 @@ export default function NewTenantPage() {
     const errs: Record<string, string> = {};
     if (step === 0) {
       if (!name.trim()) errs.name = "نام شعبه الزامی است";
-      if (!subdomain.trim()) errs.subdomain = "زیر‌دامنه الزامی است";
-      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(subdomain.trim()))
+      if (!subdomain.trim()) {
+        errs.subdomain = "زیر‌دامنه الزامی است";
+      } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(subdomain.trim())) {
         errs.subdomain = "فقط حروف کوچک انگلیسی، اعداد و خط تیره";
+      } else if (subdomain.trim().toLowerCase() === "dashboard") {
+        errs.subdomain = "استفاده از زیردامنه 'dashboard' مجاز نیست";
+      } else if (subdomainCheck?.available === false) {
+        errs.subdomain = subdomainCheck.error || "این زیر‌دامنه قبلاً ثبت شده است";
+      } else if (isCheckingSubdomain) {
+        errs.subdomain = "در حال بررسی زیر‌دامنه...";
+      }
       if (!title.trim()) errs.title = "عنوان سایت الزامی است";
       if (!cityId) errs.cityId = "انتخاب شهر الزامی است";
     }
@@ -180,7 +206,7 @@ export default function NewTenantPage() {
   const canProceed = useMemo(() => {
     return Object.keys(validateStep(currentStep)).length === 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, name, subdomain, title, cityId, location, certificateFile, certificatePreview, owners, staff]);
+  }, [currentStep, name, subdomain, title, cityId, location, certificateFile, certificatePreview, owners, staff, subdomainCheck, isCheckingSubdomain]);
 
   const handleNext = () => {
     const errs = validateStep(currentStep);
@@ -483,11 +509,28 @@ export default function NewTenantPage() {
                     زیر‌دامنه
                     <span className="text-rose-400">*</span>
                   </label>
-                  <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+                  <div className={`flex items-center rounded-2xl border bg-white/5 overflow-hidden focus-within:bg-white/8 transition-all ${
+                    errors.subdomain && !isCheckingSubdomain && subdomainCheck?.available === false
+                      ? "border-rose-500/40 focus-within:border-rose-500/60"
+                      : isCheckingSubdomain
+                      ? "border-amber-500/30 focus-within:border-amber-500/50"
+                      : subdomain && subdomainCheck?.available === true
+                      ? "border-emerald-500/30 focus-within:border-emerald-500/50"
+                      : "border-white/10 focus-within:border-orange-500/40"
+                  }`}>
+                    <div className="flex items-center pl-3">
+                      {isCheckingSubdomain ? (
+                        <FiLoader className="animate-spin text-amber-400 text-sm" />
+                      ) : subdomain && subdomainCheck?.available === true ? (
+                        <FiCheck className="text-emerald-400 text-sm" />
+                      ) : subdomain && subdomainCheck?.available === false ? (
+                        <FiX className="text-rose-400 text-sm" />
+                      ) : null}
+                    </div>
                     <input
                       value={subdomain}
                       onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                      className="flex-1 bg-transparent px-4 py-3 text-sm text-white outline-none placeholder:text-white/20"
+                      className="flex-1 bg-transparent px-2 py-3 text-sm text-white outline-none placeholder:text-white/20"
                       placeholder="fadecity"
                       dir="ltr"
                     />
@@ -495,10 +538,17 @@ export default function NewTenantPage() {
                       .{MAIN_DOMAIN}
                     </span>
                   </div>
-                  {errors.subdomain && <p className="mt-1 text-[11px] text-rose-400">{errors.subdomain}</p>}
-                  {subdomain && !errors.subdomain && (
-                    <p className="mt-1 text-[11px] text-emerald-400/60 font-mono" dir="ltr">
-                      {subdomain}.{MAIN_DOMAIN}
+                  {errors.subdomain && <p className="mt-1.5 text-[11px] text-rose-400 flex items-center gap-1">
+                    {!isCheckingSubdomain && <FiAlertCircle className="shrink-0" />}
+                    <span>{errors.subdomain}</span>
+                  </p>}
+                  {subdomain && !errors.subdomain && subdomainCheck?.available === true && (
+                    <p className="mt-1.5 text-[11px] text-emerald-400/80 flex items-center gap-1 font-medium">
+                      <FiCheck className="shrink-0 text-emerald-400" />
+                      <span>آدرس اینترنتی آزاد است:</span>
+                      <span className="font-mono text-emerald-300 ml-1" dir="ltr">
+                        {subdomain}.{MAIN_DOMAIN}
+                      </span>
                     </p>
                   )}
                 </div>
@@ -533,15 +583,13 @@ export default function NewTenantPage() {
                   </div>
                 </div>
 
-                <div className="col-span-1 lg:col-span-2">
-                  <CitySelect
-                    label="شهر شعبه"
-                    value={cityId}
-                    onChange={setCityId}
-                    error={errors.cityId}
-                    required
-                  />
-                </div>
+                <CitySelect
+                  label="شهر شعبه"
+                  value={cityId}
+                  onChange={setCityId}
+                  error={errors.cityId}
+                  required
+                />
 
                 <InputField
                   label="تلفن شعبه"

@@ -27,6 +27,7 @@ import type * as data_iran_cities from "../data/iran_cities.js";
 import type * as debug from "../debug.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as notifications_dashboardNotifications from "../notifications/dashboardNotifications.js";
 import type * as notifications_notifications from "../notifications/notifications.js";
 import type * as orders_cart from "../orders/cart.js";
 import type * as orders_orders from "../orders/orders.js";
@@ -44,6 +45,7 @@ import type * as tenants_explore from "../tenants/explore.js";
 import type * as tenants_gallery from "../tenants/gallery.js";
 import type * as tenants_migrations from "../tenants/migrations.js";
 import type * as tenants_plans from "../tenants/plans.js";
+import type * as tenants_portfolio from "../tenants/portfolio.js";
 import type * as tenants_settings from "../tenants/settings.js";
 import type * as tenants_site_content from "../tenants/site_content.js";
 import type * as tenants_tenants from "../tenants/tenants.js";
@@ -60,6 +62,7 @@ import type * as users_migrations from "../users/migrations.js";
 import type * as users_promoterScore from "../users/promoterScore.js";
 import type * as users_reputation from "../users/reputation.js";
 import type * as users_staffSettings from "../users/staffSettings.js";
+import type * as users_staffVacations from "../users/staffVacations.js";
 import type * as users_users from "../users/users.js";
 import type * as utils_sms from "../utils/sms.js";
 
@@ -89,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   debug: typeof debug;
   http: typeof http;
   myFunctions: typeof myFunctions;
+  "notifications/dashboardNotifications": typeof notifications_dashboardNotifications;
   "notifications/notifications": typeof notifications_notifications;
   "orders/cart": typeof orders_cart;
   "orders/orders": typeof orders_orders;
@@ -106,6 +110,7 @@ declare const fullApi: ApiFromModules<{
   "tenants/gallery": typeof tenants_gallery;
   "tenants/migrations": typeof tenants_migrations;
   "tenants/plans": typeof tenants_plans;
+  "tenants/portfolio": typeof tenants_portfolio;
   "tenants/settings": typeof tenants_settings;
   "tenants/site_content": typeof tenants_site_content;
   "tenants/tenants": typeof tenants_tenants;
@@ -122,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   "users/promoterScore": typeof users_promoterScore;
   "users/reputation": typeof users_reputation;
   "users/staffSettings": typeof users_staffSettings;
+  "users/staffVacations": typeof users_staffVacations;
   "users/users": typeof users_users;
   "utils/sms": typeof utils_sms;
 }>;

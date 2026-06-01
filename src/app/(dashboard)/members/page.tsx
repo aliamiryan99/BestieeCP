@@ -71,7 +71,7 @@ const ROLE_CONFIG = {
     glow: "shadow-amber-500/20",
   },
   promoter: {
-    label: "پیامبر",
+    label: "پشتیبان",
     gradient: "from-indigo-400 to-violet-500",
     bg: "bg-indigo-500/10",
     border: "border-indigo-500/20",
@@ -517,7 +517,7 @@ function AddMemberModal({
                 onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as "creator" | "promoter" }))}
                 className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
               >
-                <option value="promoter">پیامبر</option>
+                <option value="promoter">پشتیبان</option>
                 <option value="creator">خالق</option>
               </select>
             </label>
@@ -759,7 +759,7 @@ function EditMemberModal({
               className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
               disabled={me?.role !== "creator"}
             >
-              <option value="promoter">پیامبر</option>
+              <option value="promoter">پشتیبان</option>
               {me?.role === "creator" && <option value="creator">خالق</option>}
             </select>
           </label>
@@ -891,7 +891,7 @@ export default function MembersPage() {
       pushToast({
         type: "error",
         title: "دسترسی محدود",
-        message: "این بخش فقط برای خالق و پیامبر مجاز است",
+        message: "این بخش فقط برای خالق و پشتیبان مجاز است",
       });
     }
   }, [initialized, hasAccess, pushToast]);
@@ -952,7 +952,7 @@ export default function MembersPage() {
           </div>
           <p className="text-lg font-bold text-white mb-2">دسترسی محدود</p>
           <p className="text-sm text-white/50">
-            این بخش فقط برای خالق و پیامبران سیستم قابل دسترس است.
+            این بخش فقط برای خالق و پشتیبانان سیستم قابل دسترس است.
           </p>
           <button
             onClick={() => router.push("/")}
@@ -990,7 +990,7 @@ export default function MembersPage() {
               تیم بستی
             </h1>
             <p className="mt-1 text-sm text-white/40">
-              مدیریت خالقان و پیامبرانی پلتفرم
+              مدیریت خالقان و پشتیبانان پلتفرم
             </p>
           </div>
           <button
@@ -1015,7 +1015,7 @@ export default function MembersPage() {
 
             {
               icon: <FiStar />,
-              label: "پیامبران",
+              label: "پشتیبانان",
               value: totalPromoters,
               color: "text-indigo-400",
               bg: "bg-indigo-500/10",
@@ -1045,7 +1045,7 @@ export default function MembersPage() {
       {/* ── Filter Tabs ── */}
       <div className="flex items-center gap-2 flex-wrap">
         {(["all", "creator", "promoter"] as const).map((f) => {
-          const labels = { all: "همه", creator: "خالقان", promoter: "پیامبران" };
+          const labels = { all: "همه", creator: "خالقان", promoter: "پشتیبانان" };
           const counts = {
             all: users.length,
             creator: totalCreators,

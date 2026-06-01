@@ -176,7 +176,7 @@ export default function Home() {
             gradient="from-indigo-500 to-purple-600"
             submetrics={[
               { label: "خالقین", value: metrics.staff.creators },
-              { label: "پیامبران", value: metrics.staff.promoters }
+              { label: "پشتیبانان", value: metrics.staff.promoters }
             ]}
           />
           <MainStatsCard
@@ -310,13 +310,13 @@ export default function Home() {
     <div className="flex flex-col gap-8 pb-12">
       {renderAnnouncements()}
 
-      <MetricGroup title="شاخص‌های عملکرد پیامبر" icon={<FiStar />}>
+      <MetricGroup title="شاخص‌های عملکرد پشتیبان" icon={<FiStar />}>
         <div className="glass-panel group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/5 bg-slate-900/60 p-6 shadow-2xl transition-all hover:border-white/10 hover:shadow-amber-500/10">
           <div className="absolute top-0 right-0 h-1 w-full bg-gradient-to-l from-amber-400 to-orange-500 opacity-50" />
 
           <div className="relative flex items-start justify-between z-10">
             <div className="flex flex-col gap-1">
-              <p className="text-sm font-bold text-white/50">ترازنامه پیامبری</p>
+              <p className="text-sm font-bold text-white/50">ترازنامه پشتیبانی</p>
               <div className="flex items-baseline gap-2">
                 <h4 className="text-4xl font-black text-white tracking-tighter tabular-nums">
                   {metrics.score.toLocaleString()}
@@ -360,7 +360,7 @@ export default function Home() {
         </div>
 
         <MainStatsCard
-          title="پیامبران جذب شده"
+          title="پشتیبانان جذب شده"
           value={metrics.childPromoters}
           icon={<FiUsers />}
           gradient="from-blue-500 to-indigo-600"

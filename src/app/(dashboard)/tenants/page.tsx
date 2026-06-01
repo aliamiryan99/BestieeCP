@@ -435,7 +435,7 @@ export default function TenantsPage() {
           <FiSlash className="text-2xl text-rose-400" />
         </div>
         <p className="text-lg font-bold text-white">دسترسی ندارید</p>
-        <p className="text-sm text-white/40">مدیریت شعب فقط برای نقش خالق یا پیامبر قابل دسترس است.</p>
+        <p className="text-sm text-white/40">مدیریت شعب فقط برای نقش خالق یا پشتیبان قابل دسترس است.</p>
         <button onClick={() => router.push("/")} className="cursor-pointer mt-4 rounded-2xl border border-white/10 px-6 py-2.5 text-sm text-white/60 hover:bg-white/5 transition">
           بازگشت به داشبورد
         </button>

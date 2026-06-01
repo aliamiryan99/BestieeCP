@@ -81,7 +81,7 @@ const ROLE_CONFIG: Record<UserRole, {
     icon: <FiShield />,
   },
   promoter: {
-    label: "پیامبر",
+    label: "پشتیبان",
     gradient: "from-indigo-400 to-violet-500",
     bg: "bg-indigo-500/10",
     border: "border-indigo-500/20",
@@ -481,7 +481,7 @@ export default function UsersPage() {
           <FiSlash className="text-2xl text-rose-400" />
         </div>
         <p className="text-lg font-bold text-white">دسترسی ندارید</p>
-        <p className="text-sm text-white/40">مدیریت کاربران فقط برای نقش خالق و پیامبر قابل دسترس است.</p>
+        <p className="text-sm text-white/40">مدیریت کاربران فقط برای نقش خالق و پشتیبان قابل دسترس است.</p>
         <button onClick={() => router.push("/")} className="cursor-pointer mt-4 rounded-2xl border border-white/10 px-6 py-2.5 text-sm text-white/60 hover:bg-white/5 transition">
           بازگشت به داشبورد
         </button>
@@ -516,7 +516,7 @@ export default function UsersPage() {
               { label: "مشتری", value: stats.customers, color: "text-rose-300" },
               { label: "مدیر شعبه", value: stats.owners, color: "text-emerald-300" },
               { label: "پرسنل", value: stats.tenantStaff, color: "text-cyan-300" },
-              { label: "پیامبر", value: stats.promoters, color: "text-amber-300" },
+              { label: "پشتیبان", value: stats.promoters, color: "text-amber-300" },
             ].map((s) => (
               <div key={s.label} className="flex flex-col gap-1 rounded-2xl bg-white/5 border border-white/5 px-4 py-3">
                 <span className={`text-xl font-black ${s.color}`}>{s.value}</span>
@@ -562,7 +562,7 @@ export default function UsersPage() {
                 <FilterChip label="مشتری" active={roleFilter === "customer"} onClick={() => setRoleFilter("customer")} />
                 <FilterChip label="پرسنل" active={roleFilter === "staff"} onClick={() => setRoleFilter("staff")} />
                 <FilterChip label="مدیر شعبه" active={roleFilter === "owner"} onClick={() => setRoleFilter("owner")} />
-                <FilterChip label="پیامبر" active={roleFilter === "promoter"} onClick={() => setRoleFilter("promoter")} />
+                <FilterChip label="پشتیبان" active={roleFilter === "promoter"} onClick={() => setRoleFilter("promoter")} />
                 <FilterChip label="خالق" active={roleFilter === "creator"} onClick={() => setRoleFilter("creator")} />
               </div>
             </div>

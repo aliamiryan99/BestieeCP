@@ -17,7 +17,7 @@ export default function LevelProgressBar({ xp, level }: { xp?: number; level?: n
             <span className="text-xl font-black text-white">{info.level}</span>
           </div>
           <div>
-            <p className="text-sm font-bold text-indigo-300 mb-0.5">سطح پیامبر</p>
+            <p className="text-sm font-bold text-indigo-300 mb-0.5">سطح پشتیبان</p>
             <p className="text-xs text-white/50">{info.isMaxLevel ? "حداکثر سطح" : "مسیر پیشرفت"}</p>
           </div>
         </div>

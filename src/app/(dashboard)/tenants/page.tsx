@@ -141,7 +141,7 @@ function TenantCard({
   const remainingLabel = tenant.active
     ? remainingDays === 0
       ? "امروز آخرین مهلت"
-      : `${remainingDays} روز تا راکد`
+      : `${remainingDays} روز تا رکود`
     : "راکد شده";
 
   return (
@@ -564,7 +564,7 @@ export default function TenantsPage() {
           </p>
           {(search || typeFilter !== "all" || statusFilter !== "all" || planFilter !== "all" || sinceFilter) && (
             <button
-              onClick={() => { 
+              onClick={() => {
                 setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setPlanFilter("all"); setSinceFilter(null);
                 if (searchParams.toString()) router.replace("/tenants");
               }}
@@ -588,11 +588,11 @@ export default function TenantsPage() {
             <FiScissors className="text-2xl text-white/30" />
           </div>
           <p className="text-white/40 text-sm">شعبه‌ای با این مشخصات یافت نشد.</p>
-          <button 
-            onClick={() => { 
+          <button
+            onClick={() => {
               setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setPlanFilter("all"); setSinceFilter(null);
               if (searchParams.toString()) router.replace("/tenants");
-            }} 
+            }}
             className="cursor-pointer text-xs text-orange-400/60 hover:text-orange-300 transition"
           >
             پاکسازی فیلترها
@@ -603,10 +603,10 @@ export default function TenantsPage() {
       {!loading && filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((tenant) => (
-            <TenantCard 
-              key={tenant._id} 
-              tenant={tenant} 
-              onDelete={setDeleteTarget} 
+            <TenantCard
+              key={tenant._id}
+              tenant={tenant}
+              onDelete={setDeleteTarget}
               onExtend={handleExtend}
               canDelete={me?.role === "creator"}
               canExtend={me?.role === "creator" || me?.role === "promoter"}

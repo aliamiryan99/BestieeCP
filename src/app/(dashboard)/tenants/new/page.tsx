@@ -76,7 +76,7 @@ const EMPTY_NEW_USER = {
   cityId: "",
 };
 
-type SiteImageField = "certificate" | "interior" | "outside" | "team";
+type SiteImageField = "certificate" | "interior" | "outside" | "team" | "interiorMobile" | "outsideMobile" | "teamMobile";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function NewTenantPage() {
@@ -132,6 +132,16 @@ export default function NewTenantPage() {
   const [teamFile, setTeamFile] = useState<File | null>(null);
   const [teamPreview, setTeamPreview] = useState<string | null>(null);
   const teamInputRef = useRef<HTMLInputElement>(null);
+
+  const [interiorMobileFile, setInteriorMobileFile] = useState<File | null>(null);
+  const [interiorMobilePreview, setInteriorMobilePreview] = useState<string | null>(null);
+  const interiorMobileInputRef = useRef<HTMLInputElement>(null);
+  const [outsideMobileFile, setOutsideMobileFile] = useState<File | null>(null);
+  const [outsideMobilePreview, setOutsideMobilePreview] = useState<string | null>(null);
+  const outsideMobileInputRef = useRef<HTMLInputElement>(null);
+  const [teamMobileFile, setTeamMobileFile] = useState<File | null>(null);
+  const [teamMobilePreview, setTeamMobilePreview] = useState<string | null>(null);
+  const teamMobileInputRef = useRef<HTMLInputElement>(null);
 
   const [telegram, setTelegram] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -253,6 +263,9 @@ export default function NewTenantPage() {
   const handleInteriorChange = createImageChangeHandler("interior", setInteriorFile, setInteriorPreview);
   const handleOutsideChange = createImageChangeHandler("outside", setOutsideFile, setOutsidePreview);
   const handleTeamChange = createImageChangeHandler("team", setTeamFile, setTeamPreview);
+  const handleInteriorMobileChange = createImageChangeHandler("interiorMobile", setInteriorMobileFile, setInteriorMobilePreview);
+  const handleOutsideMobileChange = createImageChangeHandler("outsideMobile", setOutsideMobileFile, setOutsideMobilePreview);
+  const handleTeamMobileChange = createImageChangeHandler("teamMobile", setTeamMobileFile, setTeamMobilePreview);
 
   // Submit
   const handleSubmit = async () => {
@@ -282,11 +295,22 @@ export default function NewTenantPage() {
         return storageId as string;
       };
 
-      const [certificateImageId, interiorImageId, outsideImageId, teamImageId] = await Promise.all([
+      const [
+        certificateImageId,
+        interiorImageId,
+        outsideImageId,
+        teamImageId,
+        interiorMobileImageId,
+        outsideMobileImageId,
+        teamMobileImageId
+      ] = await Promise.all([
         uploadImage(certificateFile),
         uploadImage(interiorFile),
         uploadImage(outsideFile),
         uploadImage(teamFile),
+        uploadImage(interiorMobileFile),
+        uploadImage(outsideMobileFile),
+        uploadImage(teamMobileFile),
       ]);
 
       const mapMember = (m: MemberState) => ({
@@ -314,6 +338,9 @@ export default function NewTenantPage() {
         interiorImageId,
         outsideImageId,
         teamImageId,
+        interiorMobileImageId,
+        outsideMobileImageId,
+        teamMobileImageId,
         socialLinks: {
           telegram: telegram.trim() || undefined,
           instagram: instagram.trim() || undefined,
@@ -509,15 +536,14 @@ export default function NewTenantPage() {
                     زیر‌دامنه
                     <span className="text-rose-400">*</span>
                   </label>
-                  <div className={`flex items-center rounded-2xl border bg-white/5 overflow-hidden focus-within:bg-white/8 transition-all ${
-                    errors.subdomain && !isCheckingSubdomain && subdomainCheck?.available === false
+                  <div className={`flex items-center rounded-2xl border bg-white/5 overflow-hidden focus-within:bg-white/8 transition-all ${errors.subdomain && !isCheckingSubdomain && subdomainCheck?.available === false
                       ? "border-rose-500/40 focus-within:border-rose-500/60"
                       : isCheckingSubdomain
-                      ? "border-amber-500/30 focus-within:border-amber-500/50"
-                      : subdomain && subdomainCheck?.available === true
-                      ? "border-emerald-500/30 focus-within:border-emerald-500/50"
-                      : "border-white/10 focus-within:border-orange-500/40"
-                  }`}>
+                        ? "border-amber-500/30 focus-within:border-amber-500/50"
+                        : subdomain && subdomainCheck?.available === true
+                          ? "border-emerald-500/30 focus-within:border-emerald-500/50"
+                          : "border-white/10 focus-within:border-orange-500/40"
+                    }`}>
                     <div className="flex items-center pl-3">
                       {isCheckingSubdomain ? (
                         <FiLoader className="animate-spin text-amber-400 text-sm" />
@@ -709,7 +735,7 @@ export default function NewTenantPage() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-5">
-                  <div>
+                  <div className="col-span-2">
                     <label className="mb-2 block text-xs font-bold text-white/50">
                       تصویر مجوز فعالیت
                       <span className="text-rose-400 text-sm mr-1">*</span>
@@ -780,6 +806,20 @@ export default function NewTenantPage() {
                   />
 
                   <ImageUploadCard
+                    title="تصویر تیم (نسخه موبایل)"
+                    description="یک تصویر عمودی از اعضای تیم برای دستگاه‌های موبایل"
+                    preview={teamMobilePreview}
+                    onTrigger={() => teamMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setTeamMobileFile(null);
+                      setTeamMobilePreview(null);
+                    }}
+                    inputRef={teamMobileInputRef}
+                    onChange={handleTeamMobileChange}
+                    error={errors.teamMobile}
+                  />
+
+                  <ImageUploadCard
                     title="تصویر فضای داخلی"
                     description="نمایی از فضای داخل شعبه"
                     preview={interiorPreview}
@@ -794,6 +834,20 @@ export default function NewTenantPage() {
                   />
 
                   <ImageUploadCard
+                    title="تصویر فضای داخلی (نسخه موبایل)"
+                    description="نمایی عمودی از فضای داخل شعبه برای دستگاه‌های موبایل"
+                    preview={interiorMobilePreview}
+                    onTrigger={() => interiorMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setInteriorMobileFile(null);
+                      setInteriorMobilePreview(null);
+                    }}
+                    inputRef={interiorMobileInputRef}
+                    onChange={handleInteriorMobileChange}
+                    error={errors.interiorMobile}
+                  />
+
+                  <ImageUploadCard
                     title="تصویر نمای بیرونی"
                     description="ورودی یا نمای بیرون شعبه"
                     preview={outsidePreview}
@@ -805,6 +859,20 @@ export default function NewTenantPage() {
                     inputRef={outsideInputRef}
                     onChange={handleOutsideChange}
                     error={errors.outside}
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر نمای بیرونی (نسخه موبایل)"
+                    description="نمایی عمودی از ورودی یا بیرون شعبه برای دستگاه‌های موبایل"
+                    preview={outsideMobilePreview}
+                    onTrigger={() => outsideMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setOutsideMobileFile(null);
+                      setOutsideMobilePreview(null);
+                    }}
+                    inputRef={outsideMobileInputRef}
+                    onChange={handleOutsideMobileChange}
+                    error={errors.outsideMobile}
                   />
                 </div>
               </div>
@@ -1630,18 +1698,16 @@ function ServiceSelectionCard({
   }, [modelsQuery]);
 
   return (
-    <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
-      isServiceSelected || selectedModelsCount > 0
+    <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${isServiceSelected || selectedModelsCount > 0
         ? "border-indigo-500/30 shadow-lg shadow-indigo-500/10"
         : "border-white/10"
-    }`}>
+      }`}>
       {/* ── Service Header ───────────────────────────────────────────── */}
       <div
-        className={`flex items-center justify-between p-4 cursor-pointer transition-colors duration-200 ${
-          isServiceSelected || selectedModelsCount > 0
+        className={`flex items-center justify-between p-4 cursor-pointer transition-colors duration-200 ${isServiceSelected || selectedModelsCount > 0
             ? "bg-indigo-500/10"
             : "bg-white/3 hover:bg-white/6"
-        }`}
+          }`}
         onClick={() => service.hasModels ? setExpanded(!expanded) : toggleService()}
       >
         <div className="flex items-center gap-4">
@@ -1673,18 +1739,16 @@ function ServiceSelectionCard({
 
         <div className="flex items-center gap-3">
           {!service.hasModels && (
-            <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-200 ${
-              isServiceSelected
+            <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-200 ${isServiceSelected
                 ? "border-indigo-500 bg-indigo-500 shadow-md shadow-indigo-500/30"
                 : "border-white/20 bg-transparent hover:border-white/40"
-            }`}>
+              }`}>
               {isServiceSelected && <FiCheck className="text-white text-xs" />}
             </div>
           )}
           {service.hasModels && (
-            <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-300 ${
-              expanded ? "bg-indigo-500/20 rotate-90" : "bg-white/5 hover:bg-white/10"
-            }`}>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-300 ${expanded ? "bg-indigo-500/20 rotate-90" : "bg-white/5 hover:bg-white/10"
+              }`}>
               <FiArrowLeft className={`text-sm transition-colors ${expanded ? "text-indigo-300" : "text-white/40"}`} />
             </div>
           )}
@@ -1743,11 +1807,10 @@ function ServiceSelectionCard({
                       return (
                         <div
                           key={model._id}
-                          className={`group relative flex flex-col rounded-2xl border overflow-hidden cursor-pointer transition-all duration-200 ${
-                            isModelSelected
+                          className={`group relative flex flex-col rounded-2xl border overflow-hidden cursor-pointer transition-all duration-200 ${isModelSelected
                               ? "border-indigo-500/60 shadow-lg shadow-indigo-500/20 scale-[1.01]"
                               : "border-white/8 hover:border-white/20 hover:shadow-md"
-                          }`}
+                            }`}
                           onClick={() => toggleModel(model._id)}
                         >
                           {/* Image */}
@@ -1765,16 +1828,14 @@ function ServiceSelectionCard({
                             )}
 
                             {/* Selection overlay */}
-                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
-                              isModelSelected
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${isModelSelected
                                 ? "bg-indigo-500/40 backdrop-blur-[1px]"
                                 : "bg-black/0 group-hover:bg-black/20"
-                            }`}>
-                              <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 ${
-                                isModelSelected
+                              }`}>
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 ${isModelSelected
                                   ? "border-white bg-indigo-500 scale-110 shadow-xl"
                                   : "border-white/40 bg-black/30 scale-0 group-hover:scale-100"
-                              }`}>
+                                }`}>
                                 <FiCheck className="text-white text-sm" />
                               </div>
                             </div>
@@ -1788,9 +1849,8 @@ function ServiceSelectionCard({
                           </div>
 
                           {/* Model name */}
-                          <div className={`px-3 py-2.5 transition-colors duration-200 ${
-                            isModelSelected ? "bg-indigo-500/15" : "bg-white/3 group-hover:bg-white/6"
-                          }`}>
+                          <div className={`px-3 py-2.5 transition-colors duration-200 ${isModelSelected ? "bg-indigo-500/15" : "bg-white/3 group-hover:bg-white/6"
+                            }`}>
                             <p className="text-xs font-bold text-white text-center leading-tight truncate">{model.name}</p>
                             {model.nameEn && (
                               <p className="text-[10px] text-white/30 text-center font-mono mt-0.5 truncate" dir="ltr">{model.nameEn}</p>

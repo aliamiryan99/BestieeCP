@@ -66,6 +66,9 @@ export type TenantSiteContent = {
   interiorImageUrl?: string | null;
   outsideImageUrl?: string | null;
   teamImageUrl?: string | null;
+  interiorMobileImageUrl?: string | null;
+  outsideMobileImageUrl?: string | null;
+  teamMobileImageUrl?: string | null;
 };
 
 export type Tenant = {

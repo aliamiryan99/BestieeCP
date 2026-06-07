@@ -1,8 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
+import dynamic from "next/dynamic";
+
+const RequestPreviewMap = dynamic(
+  () => import("@/components/support/RequestPreviewMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[250px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-white/40" />
+        <span className="text-[10px] font-bold text-white/40">در حال بارگذاری نقشه...</span>
+      </div>
+    ),
+  }
+);
 import { useToastStore } from "@/store/toastStore";
 import { useRouter } from "next/navigation";
 import {
@@ -17,6 +31,9 @@ import {
   FiSend,
   FiX,
   FiCheckCircle,
+  FiSearch,
+  FiChevronDown,
+  FiCheck,
 } from "react-icons/fi";
 
 export default function SupportPage() {
@@ -32,6 +49,14 @@ export default function SupportPage() {
   const resolveTicket = useMutation(api.support.resolveSupportTicket);
   const pushToast = useToastStore((state) => state.push);
 
+  const isAuthorized = me?.role === "creator" || me?.role === "promoter";
+  const isCreator = me?.role === "creator";
+
+  const hasActiveCall = useMemo(() => {
+    if (isCreator || !me?._id || !tenantRequests) return false;
+    return tenantRequests.some((req: any) => req.status === "contacted" && req.contactedById === me._id);
+  }, [tenantRequests, isCreator, me]);
+
   const [activeTab, setActiveTab] = useState<"requests" | "messages" | "tickets">("requests");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   
@@ -39,6 +64,51 @@ export default function SupportPage() {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+
+  // State for searchable tenant selector inside link modal
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false);
+  const tenantSelectRef = useRef<HTMLDivElement>(null);
+
+  const selectedTenant = useMemo(() => {
+    if (!tenants || !selectedTenantId) return null;
+    return tenants.find((t: any) => t._id === selectedTenantId) ?? null;
+  }, [tenants, selectedTenantId]);
+
+  const filteredTenants = useMemo(() => {
+    if (!tenants) return [];
+    
+    let list = tenants;
+    if (!isCreator && me?._id) {
+      const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      list = tenants.filter((t: any) => {
+        const isSelfCreated = t.createdBy === me._id;
+        const isRecent = (now - t._creationTime) <= twoDaysMs;
+        return isSelfCreated && isRecent;
+      });
+    }
+
+    const q = tenantSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((t: any) => 
+      t.name.toLowerCase().includes(q) ||
+      (t.domains?.[0]?.hostname || "").toLowerCase().includes(q)
+    );
+  }, [tenants, tenantSearch, isCreator, me]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (tenantSelectRef.current && !tenantSelectRef.current.contains(event.target as Node)) {
+        setIsTenantDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // State for Request Preview Modal
+  const [previewRequest, setPreviewRequest] = useState<any | null>(null);
 
   // State for support tickets drawer
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -54,8 +124,6 @@ export default function SupportPage() {
     tenantRequests === undefined ||
     supportTickets === undefined ||
     me === undefined;
-
-  const isAuthorized = me?.role === "creator" || me?.role === "promoter";
 
   if (!loading && !isAuthorized) {
     return (
@@ -118,7 +186,21 @@ export default function SupportPage() {
 
   const openAddedModal = (request: any) => {
     setSelectedRequest(request);
-    setSelectedTenantId(tenants?.[0]?._id || "");
+    
+    let initialTenantId = "";
+    if (tenants) {
+      let eligibleTenants = tenants;
+      if (!isCreator && me?._id) {
+        const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        eligibleTenants = tenants.filter((t: any) => 
+          t.createdBy === me._id && (now - t._creationTime) <= twoDaysMs
+        );
+      }
+      initialTenantId = eligibleTenants[0]?._id || "";
+    }
+    
+    setSelectedTenantId(initialTenantId);
     setIsSubmitModalOpen(true);
   };
 
@@ -203,7 +285,7 @@ export default function SupportPage() {
   return (
     <div className="mx-auto w-full max-w-screen-2xl space-y-8 px-4 py-8 text-right rtl">
       {/* Header Panel */}
-      <div className="glass-panel flex flex-col justify-between gap-6 rounded-[2rem] border border-white/5 bg-slate-900/40 p-6 md:flex-row md:items-center">
+      <div className="glass-panel flex flex-col justify-between gap-6 rounded-[2rem] border border-white/5 bg-slate-900/40 p-4 md:p-6 md:flex-row md:items-center">
         <div>
           <h1 className="text-2xl font-bold text-white font-sans" style={{ fontFamily: "'Lalezar', cursive" }}>
             پشتیبانی  
@@ -214,36 +296,45 @@ export default function SupportPage() {
         </div>
         
         {/* Tab Switchers */}
-        <div className="flex rounded-2xl border border-white/5 bg-white/5 p-1 w-fit">
+        <div className="flex w-full md:w-fit rounded-2xl border border-white/5 bg-white/5 p-1">
           <button
             onClick={() => setActiveTab("requests")}
-            className={`cursor-pointer px-5 py-2 text-sm font-semibold rounded-xl transition ${
+            className={`cursor-pointer flex-1 md:flex-none text-center px-2 md:px-5 py-2 text-[11px] sm:text-xs md:text-sm font-semibold rounded-xl transition ${
               activeTab === "requests"
                 ? "bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-white border border-orange-500/20"
-                : "text-white/50 hover:text-white"
+                : "text-white/50 hover:text-white border border-transparent"
             }`}
           >
-            درخواست‌های ثبت‌نام ({tenantRequests?.length ?? 0})
+            <span className="hidden sm:inline">درخواست‌های ثبت‌نام</span>
+            <span className="sm:hidden">درخواست‌ها</span>
+            {" "}
+            <span>({tenantRequests?.length ?? 0})</span>
           </button>
           <button
             onClick={() => setActiveTab("tickets")}
-            className={`cursor-pointer px-5 py-2 text-sm font-semibold rounded-xl transition ${
+            className={`cursor-pointer flex-1 md:flex-none text-center px-2 md:px-5 py-2 text-[11px] sm:text-xs md:text-sm font-semibold rounded-xl transition ${
               activeTab === "tickets"
                 ? "bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-white border border-orange-500/20"
-                : "text-white/50 hover:text-white"
+                : "text-white/50 hover:text-white border border-transparent"
             }`}
           >
-            تیکت‌های شعب ({supportTickets?.length ?? 0})
+            <span className="hidden sm:inline">تیکت‌های شعب</span>
+            <span className="sm:hidden">تیکت‌ها</span>
+            {" "}
+            <span>({supportTickets?.length ?? 0})</span>
           </button>
           <button
             onClick={() => setActiveTab("messages")}
-            className={`cursor-pointer px-5 py-2 text-sm font-semibold rounded-xl transition ${
+            className={`cursor-pointer flex-1 md:flex-none text-center px-2 md:px-5 py-2 text-[11px] sm:text-xs md:text-sm font-semibold rounded-xl transition ${
               activeTab === "messages"
                 ? "bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-white border border-orange-500/20"
-                : "text-white/50 hover:text-white"
+                : "text-white/50 hover:text-white border border-transparent"
             }`}
           >
-            پیام‌های تماس ({contactMessages?.length ?? 0})
+            <span className="hidden sm:inline">پیام‌های تماس</span>
+            <span className="sm:hidden">پیام‌ها</span>
+            {" "}
+            <span>({contactMessages?.length ?? 0})</span>
           </button>
         </div>
       </div>
@@ -271,6 +362,7 @@ export default function SupportPage() {
                     minute: "2-digit",
                   });
                   const isActing = updatingId === req._id;
+                  const isRejectDisabled = !isCreator && req.status === "contacted" && req.contactedAt && (Date.now() - req.contactedAt < 24 * 60 * 60 * 1000);
 
                   return (
                     <div
@@ -283,6 +375,7 @@ export default function SupportPage() {
                           <h3 className="font-bold text-white text-base leading-none">{req.tenantName}</h3>
                           <span className="text-[10px] text-white/40 block mt-1.5">
                             دسته‌بندی: {req.tenantType === "barbers" ? "آرایشگاه مردانه" : "آرایشگاه زنانه"}
+                            {req.cityName && ` • شهر: ${req.cityName}`}
                           </span>
                         </div>
                         {/* Status Badges */}
@@ -316,69 +409,154 @@ export default function SupportPage() {
                           <FiUser className="text-white/30 shrink-0" />
                           <span>نام متقاضی: <strong>{req.ownerName}</strong></span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <FiPhone className="text-white/30 shrink-0" />
-                          <span>تلفن متقاضی: <a href={`tel:${req.ownerPhone}`} className="hover:text-amber-400 font-mono" dir="ltr">{req.ownerPhone}</a></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <FiPhone className="text-white/30 shrink-0" />
-                          <span>تلفن سالن: <a href={`tel:${req.tenantPhone}`} className="hover:text-amber-400 font-mono" dir="ltr">{req.tenantPhone}</a></span>
-                        </div>
+                        {!isCreator && req.status === "pending" ? (
+                          <div className="flex items-center gap-2 text-white/30 italic text-[11px] bg-white/2 border border-white/5 p-2 rounded-xl w-full">
+                            <span>📞 شماره‌های تماس: 🔒 پس از کلیک روی «تماس می‌گیرم» نمایش داده می‌شود</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <FiPhone className="text-white/30 shrink-0" />
+                              <span>تلفن متقاضی: <a href={`tel:${req.ownerPhone}`} className="hover:text-amber-400 font-mono" dir="ltr">{req.ownerPhone}</a></span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <FiPhone className="text-white/30 shrink-0" />
+                              <span>تلفن سالن: <a href={`tel:${req.tenantPhone}`} className="hover:text-amber-400 font-mono" dir="ltr">{req.tenantPhone}</a></span>
+                            </div>
+                          </>
+                        )}
                         <div className="flex items-start gap-2">
                           <span className="mt-0.5 text-white/30 shrink-0">📍</span>
                           <span>آدرس: {req.address}</span>
                         </div>
+                        {req.cityName && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-white/30 shrink-0">🏙️</span>
+                            <span>شهر: <strong>{req.cityName}</strong></span>
+                          </div>
+                        )}
+                        {req.location && (isCreator || req.status !== "pending") && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-white/30 shrink-0">🗺️</span>
+                            <span>
+                              موقعیت:{" "}
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${req.location.lat},${req.location.lng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-amber-400 hover:underline"
+                              >
+                                مشاهده روی نقشه
+                              </a>
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 text-xs text-white/40 pt-1 border-t border-t-white/5">
                           <FiClock className="shrink-0 text-white/20" />
-                          <span>ثبت شده توسط {req.user?.name || "کاربر ناشناس"} در {dateStr}</span>
+                          <span>
+                            {isCreator
+                              ? `ثبت شده توسط ${req.user?.name || "کاربر ناشناس"} در ${dateStr}`
+                              : `ثبت شده در ${dateStr}`}
+                          </span>
                         </div>
                       </div>
 
                       {/* Action buttons based on status */}
-                      <div className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5">
-                        {req.status === "pending" && (
-                          <button
-                            onClick={() => handleCallRequest(req._id)}
-                            disabled={isActing}
-                            className="cursor-pointer flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-blue-500/30 hover:border-blue-400 bg-blue-500/5 hover:bg-blue-500/10 text-blue-300 font-bold text-xs transition disabled:opacity-50"
-                          >
-                            {isActing ? <FiLoader className="animate-spin" /> : <FiPhone />}
-                            تماس می‌گیرم
-                          </button>
-                        )}
-                        {req.status === "contacted" && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2 pt-3 border-t border-white/5">
+                        {!isCreator && req.status === "pending" ? (
                           <>
+                            {hasActiveCall ? (
+                              <div className="w-full text-[10px] text-rose-400 bg-rose-500/5 border border-rose-500/10 px-3 py-2.5 rounded-xl text-center">
+                                ⚠️ شما یک تماس تکمیل نشده دارید. ابتدا آن را تعیین تکلیف کنید.
+                              </div>
+                            ) : (
+                              <div className="w-full text-[10px] text-amber-400/80 font-medium bg-amber-500/5 border border-amber-500/10 px-3 py-2 rounded-xl text-center">
+                                🔒 برای مشاهده اطلاعات تماس و نقشه ابتدا دکمه زیر را بزنید.
+                              </div>
+                            )}
                             <button
-                              onClick={() => openAddedModal(req)}
-                              disabled={isActing}
-                              className="cursor-pointer flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl border border-emerald-500/30 hover:border-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-300 font-bold text-xs transition disabled:opacity-50"
+                              onClick={() => handleCallRequest(req._id)}
+                              disabled={isActing || hasActiveCall}
+                              title={hasActiveCall ? "ابتدا باید تماس در جریان خود را تکمیل کنید" : undefined}
+                              className={`cursor-pointer flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border text-xs font-bold transition disabled:opacity-50 ${
+                                hasActiveCall
+                                  ? "border-blue-500/10 bg-blue-500/5 text-blue-400/30 cursor-not-allowed"
+                                  : "border-blue-500/30 hover:border-blue-400 bg-blue-500/5 hover:bg-blue-500/10 text-blue-300"
+                              }`}
                             >
-                              شعبه ساخته شد
-                            </button>
-                            <button
-                              onClick={() => handleRejectRequest(req._id)}
-                              disabled={isActing}
-                              className="cursor-pointer flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl border border-rose-500/30 hover:border-rose-400 bg-rose-500/5 hover:bg-rose-500/10 text-rose-300 font-bold text-xs transition disabled:opacity-50"
-                            >
-                              ساخته نشد
+                               {isActing ? <FiLoader className="animate-spin" /> : <FiPhone />}
+                               تماس می‌گیرم
                             </button>
                           </>
-                        )}
-                        {req.status === "added" && req.tenant && (
-                          <div className="flex items-center gap-2 text-xs text-emerald-400/90 font-semibold bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-2xl w-full justify-between">
-                            <span>شعبه متصل: <strong>{req.tenant.name}</strong></span>
+                        ) : (
+                          <>
                             <button
-                              onClick={() => router.push(`/tenants/${req.tenantId}/edit`)}
-                              className="text-[10px] text-amber-400 flex items-center gap-1 hover:underline shrink-0"
+                              onClick={() => setPreviewRequest(req)}
+                              className="cursor-pointer flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white font-bold text-xs transition"
                             >
-                              ویرایش شعبه
-                              <FiExternalLink />
+                              🔍 مشاهده کامل
                             </button>
-                          </div>
+                            {req.status === "pending" && (
+                              <button
+                                onClick={() => handleCallRequest(req._id)}
+                                disabled={isActing || hasActiveCall}
+                                title={hasActiveCall ? "ابتدا باید تماس در جریان خود را تکمیل کنید" : undefined}
+                                className={`cursor-pointer flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl border text-xs font-bold transition disabled:opacity-50 ${
+                                  hasActiveCall
+                                    ? "border-blue-500/10 bg-blue-500/5 text-blue-400/30 cursor-not-allowed"
+                                    : "border-blue-500/30 hover:border-blue-400 bg-blue-500/5 hover:bg-blue-500/10 text-blue-300"
+                                }`}
+                              >
+                                {isActing ? <FiLoader className="animate-spin" /> : <FiPhone />}
+                                تماس می‌گیرم
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {req.status === "contacted" && (
+                           <>
+                             <button
+                               onClick={() => openAddedModal(req)}
+                               disabled={isActing}
+                               className="cursor-pointer flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl border border-emerald-500/30 hover:border-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-300 font-bold text-xs transition disabled:opacity-50"
+                             >
+                               ساخته شد
+                             </button>
+                             <button
+                               onClick={() => handleRejectRequest(req._id)}
+                               disabled={isActing || isRejectDisabled}
+                               title={isRejectDisabled ? "رد درخواست تا ۲۴ ساعت پس از شروع تماس امکان‌پذیر نیست" : undefined}
+                               className={`cursor-pointer flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl border font-bold text-xs transition disabled:opacity-50 ${
+                                 isRejectDisabled
+                                   ? "border-rose-500/10 bg-rose-500/5 text-rose-400/30 cursor-not-allowed"
+                                   : "border-rose-500/30 hover:border-rose-400 bg-rose-500/5 hover:bg-rose-500/10 text-rose-300"
+                               }`}
+                             >
+                               رد
+                             </button>
+                           </>
+                        )}
+                        {req.status === "added" && (
+                          isCreator && req.tenant ? (
+                            <div className="flex items-center gap-2 text-xs text-emerald-400/90 font-semibold bg-emerald-500/5 border border-emerald-500/10 p-2.5 rounded-xl flex-1 justify-between">
+                              <span>شعبه: <strong>{req.tenant.name}</strong></span>
+                              <button
+                                onClick={() => router.push(`/tenants/${req.tenantId}/edit`)}
+                                className="text-[10px] text-amber-400 flex items-center gap-0.5 hover:underline shrink-0"
+                              >
+                                ویرایش
+                                <FiExternalLink />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-emerald-400/70 font-semibold italic flex-1 text-center">
+                              شعبه ساخته شد
+                            </span>
+                          )
                         )}
                         {req.status === "rejected" && (
-                          <span className="text-xs text-rose-400/70 font-semibold italic text-center w-full block">
-                            درخواست رد شد / شعبه ساخته نشد
+                          <span className="text-xs text-rose-400/70 font-semibold italic flex-1 text-center">
+                            درخواست رد شد
                           </span>
                         )}
                       </div>
@@ -542,22 +720,93 @@ export default function SupportPage() {
             </p>
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
-              <label className="block space-y-1.5">
-                <span className="text-xs text-white/50">شعبه ایجاد شده</span>
-                <select
-                  value={selectedTenantId}
-                  onChange={(e) => setSelectedTenantId(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
-                  required
+              <div className="relative" ref={tenantSelectRef}>
+                <span className="text-xs text-white/50 block mb-1.5">شعبه ایجاد شده</span>
+                
+                <button
+                  type="button"
+                  onClick={() => setIsTenantDropdownOpen((prev) => !prev)}
+                  className={`group flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm transition-all text-right ${
+                    isTenantDropdownOpen
+                      ? "border-orange-500/50 bg-slate-850 ring-2 ring-orange-500/10"
+                      : "border-white/10 bg-slate-800 hover:border-white/20"
+                  }`}
                 >
-                  <option value="">-- انتخاب شعبه --</option>
-                  {tenants?.map((tenant: any) => (
-                    <option key={tenant._id} value={tenant._id}>
-                      {tenant.name} ({tenant.domains?.[0]?.hostname || "بدون دامنه"})
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    {selectedTenant ? (
+                      <>
+                        <span className="truncate font-bold text-white">{selectedTenant.name}</span>
+                        <span className="truncate text-[10px] text-white/40">
+                          ({selectedTenant.domains?.[0]?.hostname || "بدون دامنه"})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-white/30">جستجو و انتخاب شعبه...</span>
+                    )}
+                  </div>
+                  <FiChevronDown
+                    className={`text-white/30 transition-transform duration-300 ${
+                      isTenantDropdownOpen ? "rotate-180 text-orange-400" : "group-hover:text-white/50"
+                    }`}
+                  />
+                </button>
+
+                {isTenantDropdownOpen && (
+                  <div
+                    className="absolute z-[100] mt-2 w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900 p-2 shadow-2xl backdrop-blur-xl"
+                    style={{ maxHeight: "300px", top: "100%", left: 0 }}
+                  >
+                    <div className="sticky top-0 z-10 mb-2 px-1">
+                      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-850 px-3 py-2">
+                        <FiSearch className="text-white/20 shrink-0" />
+                        <input
+                          autoFocus
+                          value={tenantSearch}
+                          onChange={(e) => setTenantSearch(e.target.value)}
+                          placeholder="جستجوی نام یا دامنه سالن..."
+                          className="w-full bg-transparent text-xs text-white outline-none placeholder:text-white/20"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="max-h-[200px] space-y-1 overflow-y-auto px-1 pb-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+                      {filteredTenants.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-6 text-white/30 text-xs italic">
+                          شعبه‌ای یافت نشد
+                        </div>
+                      ) : (
+                        filteredTenants.map((tenant: any) => {
+                          const isSelected = selectedTenantId === tenant._id;
+                          return (
+                            <button
+                              key={tenant._id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTenantId(tenant._id);
+                                setIsTenantDropdownOpen(false);
+                                setTenantSearch("");
+                              }}
+                              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 transition text-right ${
+                                isSelected
+                                  ? "bg-orange-500/20 text-orange-100 font-bold"
+                                  : "text-white/60 hover:bg-white/5 hover:text-white"
+                              }`}
+                            >
+                              <div className="flex flex-col text-right">
+                                <span className="text-sm">{tenant.name}</span>
+                                <span className="text-[10px] text-white/30">
+                                  {tenant.domains?.[0]?.hostname || "بدون دامنه"}
+                                </span>
+                              </div>
+                              {isSelected && <FiCheck className="text-orange-400 shrink-0" />}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="flex items-center justify-end gap-3 pt-3">
                 <button
@@ -579,6 +828,91 @@ export default function SupportPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Dialog: Preview Tenant Request details & location map */}
+      {previewRequest && (isCreator || previewRequest.status !== "pending") && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 text-right rtl">
+          <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/5 px-6 py-4 bg-slate-950/40">
+              <div>
+                <span className="text-[10px] text-orange-400 font-bold uppercase tracking-wide leading-none block mb-1">
+                  پیش‌نمایش درخواست عضویت
+                </span>
+                <h3 className="font-bold text-white text-lg leading-tight">
+                  {previewRequest.tenantName}
+                </h3>
+              </div>
+              <button
+                onClick={() => setPreviewRequest(null)}
+                className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-white/50 transition hover:bg-white/10 hover:text-white"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Detailed Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-white/80">
+                <div className="bg-white/3 p-4 rounded-2xl border border-white/5 space-y-2">
+                  <h4 className="font-bold text-white text-xs text-white/40 mb-2">اطلاعات سالن</h4>
+                  <p><strong>نام سالن:</strong> {previewRequest.tenantName}</p>
+                  <p><strong>نوع سالن:</strong> {previewRequest.tenantType === "barbers" ? "آرایشگاه آقایان" : "سالن زیبایی بانوان"}</p>
+                  <p><strong>تلفن سالن:</strong> <a href={`tel:${previewRequest.tenantPhone}`} className="text-orange-400 hover:underline font-mono" dir="ltr">{previewRequest.tenantPhone}</a></p>
+                  <p><strong>شهر:</strong> {previewRequest.cityName || "نامشخص"}</p>
+                </div>
+
+                <div className="bg-white/3 p-4 rounded-2xl border border-white/5 space-y-2">
+                  <h4 className="font-bold text-white text-xs text-white/40 mb-2">اطلاعات مالک</h4>
+                  <p><strong>نام مالک:</strong> {previewRequest.ownerName}</p>
+                  <p><strong>تلفن مالک:</strong> <a href={`tel:${previewRequest.ownerPhone}`} className="text-orange-400 hover:underline font-mono" dir="ltr">{previewRequest.ownerPhone}</a></p>
+                  <p><strong>ثبت شده در:</strong> {new Date(previewRequest.createdAt).toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" })}</p>
+                  {isCreator && previewRequest.user && (
+                    <p><strong>ثبت شده توسط:</strong> {previewRequest.user.name}</p>
+                  )}
+                  {isCreator && previewRequest.tenant && (
+                    <p><strong>شعبه متصل:</strong> {previewRequest.tenant.name}</p>
+                  )}
+                  <p><strong>وضعیت درخواست:</strong>{" "}
+                    {previewRequest.status === "pending" && <span className="text-amber-400 font-bold">در انتظار بررسی</span>}
+                    {previewRequest.status === "contacted" && <span className="text-blue-400 font-bold">در حال تماس</span>}
+                    {previewRequest.status === "added" && <span className="text-emerald-400 font-bold">شعبه ساخته شد</span>}
+                    {previewRequest.status === "rejected" && <span className="text-rose-400 font-bold">ساخته نشد</span>}
+                  </p>
+                </div>
+
+                <div className="bg-white/3 p-4 rounded-2xl border border-white/5 col-span-full space-y-1">
+                  <h4 className="font-bold text-white text-xs text-white/40 mb-2">نشانی دقیق</h4>
+                  <p className="leading-relaxed">{previewRequest.address}</p>
+                </div>
+              </div>
+
+              {/* Map Preview */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-white text-xs text-white/40">موقعیت جغرافیایی روی نقشه</h4>
+                {previewRequest.location ? (
+                  <RequestPreviewMap location={previewRequest.location} />
+                ) : (
+                  <div className="flex h-[200px] items-center justify-center rounded-2xl border border-white/5 bg-white/2 text-white/30 text-xs italic">
+                    موقعیت جغرافیایی برای این درخواست ثبت نشده است.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="border-t border-white/5 p-4 bg-slate-950/40 flex justify-end">
+              <button
+                onClick={() => setPreviewRequest(null)}
+                className="cursor-pointer rounded-2xl border border-white/10 px-5 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10 transition"
+              >
+                بستن پنجره
+              </button>
+            </div>
           </div>
         </div>
       )}

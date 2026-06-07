@@ -177,8 +177,8 @@ export default function NewTenantPage() {
         errs.subdomain = "زیر‌دامنه الزامی است";
       } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(subdomain.trim())) {
         errs.subdomain = "فقط حروف کوچک انگلیسی، اعداد و خط تیره";
-      } else if (subdomain.trim().toLowerCase() === "dashboard") {
-        errs.subdomain = "استفاده از زیردامنه 'dashboard' مجاز نیست";
+      } else if (subdomain.trim().toLowerCase() === "dash") {
+        errs.subdomain = "استفاده از زیردامنه 'dash' مجاز نیست";
       } else if (subdomainCheck?.available === false) {
         errs.subdomain = subdomainCheck.error || "این زیر‌دامنه قبلاً ثبت شده است";
       } else if (isCheckingSubdomain) {
@@ -537,12 +537,12 @@ export default function NewTenantPage() {
                     <span className="text-rose-400">*</span>
                   </label>
                   <div className={`flex items-center rounded-2xl border bg-white/5 overflow-hidden focus-within:bg-white/8 transition-all ${errors.subdomain && !isCheckingSubdomain && subdomainCheck?.available === false
-                      ? "border-rose-500/40 focus-within:border-rose-500/60"
-                      : isCheckingSubdomain
-                        ? "border-amber-500/30 focus-within:border-amber-500/50"
-                        : subdomain && subdomainCheck?.available === true
-                          ? "border-emerald-500/30 focus-within:border-emerald-500/50"
-                          : "border-white/10 focus-within:border-orange-500/40"
+                    ? "border-rose-500/40 focus-within:border-rose-500/60"
+                    : isCheckingSubdomain
+                      ? "border-amber-500/30 focus-within:border-amber-500/50"
+                      : subdomain && subdomainCheck?.available === true
+                        ? "border-emerald-500/30 focus-within:border-emerald-500/50"
+                        : "border-white/10 focus-within:border-orange-500/40"
                     }`}>
                     <div className="flex items-center pl-3">
                       {isCheckingSubdomain ? (
@@ -1699,14 +1699,14 @@ function ServiceSelectionCard({
 
   return (
     <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${isServiceSelected || selectedModelsCount > 0
-        ? "border-indigo-500/30 shadow-lg shadow-indigo-500/10"
-        : "border-white/10"
+      ? "border-indigo-500/30 shadow-lg shadow-indigo-500/10"
+      : "border-white/10"
       }`}>
       {/* ── Service Header ───────────────────────────────────────────── */}
       <div
         className={`flex items-center justify-between p-4 cursor-pointer transition-colors duration-200 ${isServiceSelected || selectedModelsCount > 0
-            ? "bg-indigo-500/10"
-            : "bg-white/3 hover:bg-white/6"
+          ? "bg-indigo-500/10"
+          : "bg-white/3 hover:bg-white/6"
           }`}
         onClick={() => service.hasModels ? setExpanded(!expanded) : toggleService()}
       >
@@ -1740,8 +1740,8 @@ function ServiceSelectionCard({
         <div className="flex items-center gap-3">
           {!service.hasModels && (
             <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-200 ${isServiceSelected
-                ? "border-indigo-500 bg-indigo-500 shadow-md shadow-indigo-500/30"
-                : "border-white/20 bg-transparent hover:border-white/40"
+              ? "border-indigo-500 bg-indigo-500 shadow-md shadow-indigo-500/30"
+              : "border-white/20 bg-transparent hover:border-white/40"
               }`}>
               {isServiceSelected && <FiCheck className="text-white text-xs" />}
             </div>
@@ -1808,8 +1808,8 @@ function ServiceSelectionCard({
                         <div
                           key={model._id}
                           className={`group relative flex flex-col rounded-2xl border overflow-hidden cursor-pointer transition-all duration-200 ${isModelSelected
-                              ? "border-indigo-500/60 shadow-lg shadow-indigo-500/20 scale-[1.01]"
-                              : "border-white/8 hover:border-white/20 hover:shadow-md"
+                            ? "border-indigo-500/60 shadow-lg shadow-indigo-500/20 scale-[1.01]"
+                            : "border-white/8 hover:border-white/20 hover:shadow-md"
                             }`}
                           onClick={() => toggleModel(model._id)}
                         >
@@ -1829,12 +1829,12 @@ function ServiceSelectionCard({
 
                             {/* Selection overlay */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${isModelSelected
-                                ? "bg-indigo-500/40 backdrop-blur-[1px]"
-                                : "bg-black/0 group-hover:bg-black/20"
+                              ? "bg-indigo-500/40 backdrop-blur-[1px]"
+                              : "bg-black/0 group-hover:bg-black/20"
                               }`}>
                               <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 ${isModelSelected
-                                  ? "border-white bg-indigo-500 scale-110 shadow-xl"
-                                  : "border-white/40 bg-black/30 scale-0 group-hover:scale-100"
+                                ? "border-white bg-indigo-500 scale-110 shadow-xl"
+                                : "border-white/40 bg-black/30 scale-0 group-hover:scale-100"
                                 }`}>
                                 <FiCheck className="text-white text-sm" />
                               </div>

@@ -270,7 +270,7 @@ export function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
-            className="absolute left-0 top-[calc(100%+0.75rem)] z-50 w-[360px] max-h-[540px] overflow-hidden flex flex-col rounded-3xl border border-white/10 bg-slate-900/95 shadow-2xl backdrop-blur-xl"
+            className="fixed md:absolute left-4 right-4 md:left-0 md:right-auto top-[5.5rem] md:top-[calc(100%+0.75rem)] z-50 w-auto md:w-[360px] max-h-[540px] overflow-hidden flex flex-col rounded-3xl border border-white/10 bg-slate-900/95 shadow-2xl backdrop-blur-xl"
             style={{ direction: "rtl" }}
           >
             {/* Header */}

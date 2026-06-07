@@ -87,7 +87,7 @@ export default function TasksTab() {
           >
             {/* Header / Summary */}
             <div
-              className="flex cursor-pointer items-center justify-between p-4"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 cursor-pointer"
               onClick={() => setExpandedTask(isExpanded ? null : task._id)}
             >
               <div className="flex items-center gap-4">
@@ -102,7 +102,7 @@ export default function TasksTab() {
                     }`}
                   />
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-white text-sm">
                       {task.userName}
@@ -121,7 +121,7 @@ export default function TasksTab() {
                       {task.provider}
                     </span>
                     {task.title && (
-                      <span className="flex items-center gap-1 text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 whitespace-nowrap">
+                      <span className="flex items-center gap-1 text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 whitespace-normal break-words text-right">
                         {task.title}
                       </span>
                     )}
@@ -135,7 +135,7 @@ export default function TasksTab() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-white/5 sm:border-none pt-3 sm:pt-0">
                 <div
                   className={`rounded-full px-3 py-1 text-xs font-bold border ${cfg.bg} ${cfg.border} ${cfg.color}`}
                 >

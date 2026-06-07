@@ -508,31 +508,18 @@ function AddMemberModal({
             </div>
           </div>
 
-          {/* Role + Gender */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-white/50">نقش</span>
-              <select
-                value={form.role}
-                onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as "creator" | "promoter" }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
-              >
-                <option value="promoter">پشتیبان</option>
-                <option value="creator">خالق</option>
-              </select>
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-white/50">جنسیت</span>
-              <select
-                value={form.gender}
-                onChange={(e) => setForm((p) => ({ ...p, gender: e.target.value as "male" | "female" }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
-              >
-                <option value="male">مرد</option>
-                <option value="female">زن</option>
-              </select>
-            </label>
-          </div>
+          {/* Gender */}
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-white/50">جنسیت</span>
+            <select
+              value={form.gender}
+              onChange={(e) => setForm((p) => ({ ...p, gender: e.target.value as "male" | "female" }))}
+              className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
+            >
+              <option value="male">مرد</option>
+              <option value="female">زن</option>
+            </select>
+          </label>
 
           {/* Error */}
           {error && (
@@ -750,19 +737,7 @@ function EditMemberModal({
             </label>
           </div>
 
-          {/* Role */}
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-white/50">نقش</span>
-            <select
-              value={form.role}
-              onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as "creator" | "promoter" }))}
-              className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
-              disabled={me?.role !== "creator"}
-            >
-              <option value="promoter">پشتیبان</option>
-              {me?.role === "creator" && <option value="creator">خالق</option>}
-            </select>
-          </label>
+
 
           {/* Error */}
           {error && (

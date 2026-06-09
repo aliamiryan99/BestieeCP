@@ -21,6 +21,7 @@ import {
   FiDatabase,
   FiCpu,
   FiMessageSquare,
+  FiDollarSign,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -47,6 +48,7 @@ export function TopNav() {
     ...(user?.role === "creator" || user?.role === "promoter" ? [{ href: "/support", label: "پشتیبانی", icon: FiMessageSquare }] : []),
     ...(user?.role === "creator" ? [{ href: "/constants", label: "ثابت‌ها", icon: FiDatabase }] : []),
     ...(user?.role === "creator" ? [{ href: "/ai", label: "هوش مصنوعی", icon: FiCpu }] : []),
+    ...(user?.role === "creator" ? [{ href: "/financial", label: "مالی", icon: FiDollarSign }] : []),
   ];
 
   // Close drawer on route change

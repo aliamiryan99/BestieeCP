@@ -12,8 +12,10 @@ import {
   FiShield,
   FiCreditCard,
   FiZap,
+  FiBarChart2,
 } from "react-icons/fi";
 import { useToastStore } from "@/store/toastStore";
+import FinancialReportsTab from "./components/FinancialReportsTab";
 
 export default function FinancialPage() {
   const me = useQuery(api.users.auth.me);
@@ -22,7 +24,8 @@ export default function FinancialPage() {
   const updateSettings = useMutation(api.ai.settings.update);
   const pushToast = useToastStore((state) => state.push);
 
-  const [defaultGateway, setDefaultGateway] = useState<"zarinpal" | "jibit">("zarinpal");
+  const [activeTab, setActiveTab] = useState<"settings" | "reports">("reports");
+  const [defaultGateway, setDefaultGateway] = useState<"zarinpal" | "jibit" | "zibal">("zarinpal");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -86,8 +89,13 @@ export default function FinancialPage() {
     }
   };
 
+  const tabs = [
+    { id: "reports", label: "گزارش‌های مالی", icon: FiBarChart2 },
+    { id: "settings", label: "تنظیمات درگاه", icon: FiSettings },
+  ] as const;
+
   return (
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto" dir="rtl">
+    <div className="flex flex-col gap-6 max-w-7xl w-full mx-auto transition-all duration-300" dir="rtl">
       {/* ── Page Header ── */}
       <div className="flex flex-col gap-5 rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
         <div className="flex items-center gap-4">
@@ -96,123 +104,185 @@ export default function FinancialPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-white">
-              تنظیمات درگاه‌های مالی پلتفرم
+              مدیریت مالی پلتفرم
             </h1>
             <p className="text-sm text-white/40 mt-0.5">
-              مدیریت و سوییچ بین درگاه‌های فعال زرین‌پال و جیبیت
+              گزارش‌گیری تراکنش‌ها، مانیتورینگ درآمد و تنظیمات درگاه‌های فعال
             </p>
           </div>
+        </div>
+
+        {/* Tabs Row */}
+        <div className="flex items-center gap-2 overflow-x-auto pt-2 scrollbar-hide border-t border-white/5 mt-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition cursor-pointer ${
+                activeTab === tab.id
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-lg shadow-amber-500/5"
+                  : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <tab.icon className="text-lg" />
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ── Content Card ── */}
-      <div className="glass-panel rounded-3xl border border-white/8 p-8 shadow-xl space-y-8">
-        <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
-            <FiCreditCard className="text-xl" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">درگاه پرداخت پیش‌فرض (فعال)</h3>
-            <p className="text-sm text-white/40">
-              درگاه انتخابی برای تمام پرداخت‌های مربوط به بسته‌های اعتباری هوش مصنوعی و اشتراک سالن‌ها استفاده خواهد شد.
-            </p>
-          </div>
-        </div>
+      {/* ── Tab Content ── */}
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {activeTab === "reports" && <FinancialReportsTab />}
 
-        {/* ── Gateway Grid Selector ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Zarinpal Card */}
-          <div
-            onClick={() => setDefaultGateway("zarinpal")}
-            className={`cursor-pointer group relative flex flex-col gap-4 rounded-3xl border p-6 transition-all duration-300 overflow-hidden ${
-              defaultGateway === "zarinpal"
-                ? "border-amber-500/40 bg-amber-500/5 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/30"
-                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-            }`}
-          >
-            {defaultGateway === "zarinpal" && (
-              <div className="absolute top-4 left-4 text-amber-400 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full text-xs font-bold animate-fade-in">
-                <FiCheckCircle />
-                درگاه فعال
-              </div>
-            )}
-            
-            <div className="flex items-center gap-3 mt-2">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-300 ${
-                defaultGateway === "zarinpal" ? "bg-amber-500/20 border border-amber-500/30 text-amber-400" : "bg-white/5 border border-white/10 text-white/40"
-              }`}>
-                <span className="font-extrabold text-xs">زرین‌پال</span>
+        {activeTab === "settings" && (
+          <div className="glass-panel rounded-3xl border border-white/8 p-8 shadow-xl space-y-8">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                <FiCreditCard className="text-xl" />
               </div>
               <div>
-                <h4 className="font-bold text-white text-base">درگاه زرین‌پال (Zarinpal)</h4>
-                <p className="text-xs text-white/40 mt-0.5">درگاه پرداخت بین‌المللی ریالی/تومانی</p>
+                <h3 className="text-lg font-bold text-white">درگاه پرداخت پیش‌فرض (فعال)</h3>
+                <p className="text-sm text-white/40">
+                  درگاه انتخابی برای تمام پرداخت‌های مربوط به بسته‌های اعتباری هوش مصنوعی و اشتراک سالن‌ها استفاده خواهد شد.
+                </p>
               </div>
             </div>
 
-            <p className="text-xs text-white/50 leading-relaxed mt-2">
-              درگاه پرداخت زرین‌پال تراکنش‌ها را بر پایه **تومان (IRT)** انجام می‌دهد. از ویژگی‌های زرین‌پال، پایداری بالا در هدایت کاربر و قابلیت شبیه‌ساز پرداخت (Sandbox) روی لوکال‌هاست می‌باشد.
-            </p>
+            {/* ── Gateway Grid Selector ── */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Zarinpal Card */}
+              <div
+                onClick={() => setDefaultGateway("zarinpal")}
+                className={`cursor-pointer group relative flex flex-col gap-4 rounded-3xl border p-6 transition-all duration-300 overflow-hidden ${
+                  defaultGateway === "zarinpal"
+                    ? "border-amber-500/40 bg-amber-500/5 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/30"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+                }`}
+              >
+                {defaultGateway === "zarinpal" && (
+                  <div className="absolute top-4 left-4 text-amber-400 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full text-xs font-bold animate-fade-in">
+                    <FiCheckCircle />
+                    درگاه فعال
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-3 mt-2">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-300 ${
+                    defaultGateway === "zarinpal" ? "bg-amber-500/20 border border-amber-500/30 text-amber-400" : "bg-white/5 border border-white/10 text-white/40"
+                  }`}>
+                    <span className="font-extrabold text-xs">زرین‌پال</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-base">درگاه زرین‌پال (Zarinpal)</h4>
+                    <p className="text-xs text-white/40 mt-0.5">درگاه پرداخت بین‌المللی ریالی/تومانی</p>
+                  </div>
+                </div>
 
-            <div className="flex items-center gap-2 border-t border-white/5 pt-4 mt-auto text-xs text-white/40">
-              <FiShield />
-              <span>پشتیبانی از سوییچ هوشمند شاپرک</span>
+                <p className="text-xs text-white/50 leading-relaxed mt-2">
+                  درگاه پرداخت زرین‌پال تراکنش‌ها را بر پایه **تومان (IRT)** انجام می‌دهد. از ویژگی‌های زرین‌پال، پایداری بالا در هدایت کاربر و قابلیت شبیه‌ساز پرداخت (Sandbox) روی لوکال‌هاست می‌باشد.
+                </p>
+
+                <div className="flex items-center gap-2 border-t border-white/5 pt-4 mt-auto text-xs text-white/40">
+                  <FiShield />
+                  <span>پشتیبانی از سوییچ هوشمند شاپرک</span>
+                </div>
+              </div>
+
+              {/* Jibit Card */}
+              <div
+                onClick={() => setDefaultGateway("jibit")}
+                className={`cursor-pointer group relative flex flex-col gap-4 rounded-3xl border p-6 transition-all duration-300 overflow-hidden ${
+                  defaultGateway === "jibit"
+                    ? "border-amber-500/40 bg-amber-500/5 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/30"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+                }`}
+              >
+                {defaultGateway === "jibit" && (
+                  <div className="absolute top-4 left-4 text-amber-400 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full text-xs font-bold animate-fade-in">
+                    <FiCheckCircle />
+                    درگاه فعال
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-2">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-300 ${
+                    defaultGateway === "jibit" ? "bg-amber-500/20 border border-amber-500/30 text-amber-400" : "bg-white/5 border border-white/10 text-white/40"
+                  }`}>
+                    <span className="font-extrabold text-xs">جیبیت</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-base">درگاه جیبیت (Jibit)</h4>
+                    <p className="text-xs text-white/40 mt-0.5">درگاه پرداخت نسل جدید جیبیت</p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-white/50 leading-relaxed mt-2">
+                  درگاه پرداخت جیبیت تراکنش‌ها را بر پایه **ریال (IRR)** دریافت می‌کند (قیمت تومانی سیستم در پرداخت درگاه ضربدر ۱۰ می‌شود). این درگاه دارای سرعت لود بالا، کیف پول درگاه و تسویه‌های اتوماتیک است.
+                </p>
+
+                <div className="flex items-center gap-2 border-t border-white/5 pt-4 mt-auto text-xs text-white/40">
+                  <FiZap />
+                  <span>پشتیبانی از استعلام کارت پرداخت‌کننده و ثبت کارت شبا</span>
+                </div>
+              </div>
+
+              {/* Zibal Card */}
+              <div
+                onClick={() => setDefaultGateway("zibal")}
+                className={`cursor-pointer group relative flex flex-col gap-4 rounded-3xl border p-6 transition-all duration-300 overflow-hidden ${
+                  defaultGateway === "zibal"
+                    ? "border-blue-500/40 bg-blue-500/5 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/30"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+                }`}
+              >
+                {defaultGateway === "zibal" && (
+                  <div className="absolute top-4 left-4 text-blue-400 flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold animate-fade-in">
+                    <FiCheckCircle />
+                    درگاه فعال
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-2">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-300 ${
+                    defaultGateway === "zibal" ? "bg-blue-500/20 border border-blue-500/30 text-blue-400" : "bg-white/5 border border-white/10 text-white/40"
+                  }`}>
+                    <span className="font-extrabold text-xs">زیبال</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-base">درگاه زیبال (Zibal)</h4>
+                    <p className="text-xs text-white/40 mt-0.5">درگاه پرداخت هوشمند و پایدار ریالی</p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-white/50 leading-relaxed mt-2">
+                  درگاه پرداخت زیبال تراکنش‌ها را بر پایه **ریال (IRR)** دریافت می‌کند (قیمت تومانی سیستم ضربدر ۱۰ می‌شود). زیبال با مسیردهی هوشمند تراکنش‌ها و تسویه حساب سریع، بالاترین درصد موفقیت پرداخت را ارائه می‌دهد.
+                </p>
+
+                <div className="flex items-center gap-2 border-t border-white/5 pt-4 mt-auto text-xs text-white/40">
+                  <FiZap />
+                  <span>مسیردهی هوشمند به بهترین درگاه بانکی فعال</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Action Buttons ── */}
+            <div className="flex justify-end pt-4 border-t border-white/5">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="cursor-pointer flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-8 py-3.5 text-sm font-bold text-white shadow-xl shadow-emerald-500/10 hover:shadow-emerald-500/25 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isSaving ? (
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <FiSave className="text-lg" />
+                )}
+                <span>ذخیره تنظیمات درگاه</span>
+              </button>
             </div>
           </div>
-
-          {/* Jibit Card */}
-          <div
-            onClick={() => setDefaultGateway("jibit")}
-            className={`cursor-pointer group relative flex flex-col gap-4 rounded-3xl border p-6 transition-all duration-300 overflow-hidden ${
-              defaultGateway === "jibit"
-                ? "border-amber-500/40 bg-amber-500/5 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/30"
-                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-            }`}
-          >
-            {defaultGateway === "jibit" && (
-              <div className="absolute top-4 left-4 text-amber-400 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full text-xs font-bold animate-fade-in">
-                <FiCheckCircle />
-                درگاه فعال
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 mt-2">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-300 ${
-                defaultGateway === "jibit" ? "bg-amber-500/20 border border-amber-500/30 text-amber-400" : "bg-white/5 border border-white/10 text-white/40"
-              }`}>
-                <span className="font-extrabold text-xs">جیبیت</span>
-              </div>
-              <div>
-                <h4 className="font-bold text-white text-base">درگاه جیبیت (Jibit)</h4>
-                <p className="text-xs text-white/40 mt-0.5">درگاه پرداخت نسل جدید جیبیت</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-white/50 leading-relaxed mt-2">
-              درگاه پرداخت جیبیت تراکنش‌ها را بر پایه **ریال (IRR)** دریافت می‌کند (قیمت تومانی سیستم در پرداخت درگاه ضربدر ۱۰ می‌شود). این درگاه دارای سرعت لود بالا، کیف پول درگاه و تسویه‌های اتوماتیک است.
-            </p>
-
-            <div className="flex items-center gap-2 border-t border-white/5 pt-4 mt-auto text-xs text-white/40">
-              <FiZap />
-              <span>پشتیبانی از استعلام کارت پرداخت‌کننده و ثبت کارت شبا</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Action Buttons ── */}
-        <div className="flex justify-end pt-4 border-t border-white/5">
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="cursor-pointer flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-8 py-3.5 text-sm font-bold text-white shadow-xl shadow-emerald-500/10 hover:shadow-emerald-500/25 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {isSaving ? (
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-            ) : (
-              <FiSave className="text-lg" />
-            )}
-            <span>ذخیره تنظیمات درگاه</span>
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

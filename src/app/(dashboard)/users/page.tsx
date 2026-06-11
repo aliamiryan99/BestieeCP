@@ -61,6 +61,7 @@ type EnrichedUser = {
   tenantId?: string;
   profilePictureUrl?: string | null;
   tenantName?: string | null;
+  phone_verified?: boolean;
 };
 
 // ─── Role Configuration ───────────────────────────────────────────────────────
@@ -195,9 +196,16 @@ function UserRow({ user, selected, onClick, cityName }: { user: EnrichedUser; se
       </div>
 
       {/* Phone */}
-      <div className="hidden md:flex items-center gap-1.5 text-xs text-white/40">
-        <FiPhone className="text-white/20 shrink-0" />
-        <span dir="ltr">{user.phone}</span>
+      <div className="hidden md:flex flex-col gap-0.5 min-w-[110px]">
+        <div className="flex items-center gap-1 text-xs text-white/60">
+          <FiPhone className="text-white/25 shrink-0 text-[10px]" />
+          <span dir="ltr" className="font-mono">{user.phone}</span>
+        </div>
+        {user.phone_verified ? (
+          <span className="text-[9px] font-bold text-emerald-400 mr-3.5">تایید شده</span>
+        ) : (
+          <span className="text-[9px] font-bold text-white/35 mr-3.5">تایید نشده</span>
+        )}
       </div>
       {/* City */}
       <div className="hidden lg:flex items-center gap-1 text-xs text-white/40 min-w-[80px]">
@@ -315,7 +323,16 @@ function UserDetailPanel({ user, onClose, cityName }: { user: EnrichedUser; onCl
             <span className="text-white/25 mt-0.5 shrink-0 text-sm">{row.icon}</span>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] text-white/30 leading-none mb-0.5">{row.label}</p>
-              <p className="text-xs text-white/80 break-all" dir={row.label === "موبایل" || row.label === "ایمیل" ? "ltr" : "rtl"}>{row.value}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-white/80 break-all" dir={row.label === "موبایل" || row.label === "ایمیل" ? "ltr" : "rtl"}>{row.value}</p>
+                {row.label === "موبایل" && (
+                  user.phone_verified ? (
+                    <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[8px] font-bold text-emerald-400">تایید شده</span>
+                  ) : (
+                    <span className="rounded-full bg-white/5 border border-white/10 px-1.5 py-0.5 text-[8px] font-bold text-white/40">تایید نشده</span>
+                  )
+                )}
+              </div>
             </div>
           </div>
         ))}

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useState, useEffect } from "react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "@backend/api";
 import { MainStatsCard, MetricGroup, AICreditBar } from "@/components/dashboard/DashboardCards";
-import { FiUsers, FiUser, FiAward, FiStar, FiCpu, FiTrendingUp, FiActivity, FiX } from "react-icons/fi";
+import { FiUsers, FiUser, FiAward, FiStar, FiCpu, FiTrendingUp, FiActivity, FiX, FiMessageSquare } from "react-icons/fi";
 import Link from "next/link";
 import { Doc } from "@backend/dataModel";
 import { motion, AnimatePresence } from "framer-motion";
@@ -68,6 +68,26 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Doc<"annou
 export default function Home() {
   const data = useQuery(api.dashboard.dashboard.getDashboardMetrics);
   const loading = data === undefined;
+
+  const getSmsCredit = useAction(api.communications.sms.getSmsCredit);
+  const [smsCredit, setSmsCredit] = useState<number | null>(null);
+  const [loadingSmsCredit, setLoadingSmsCredit] = useState(false);
+
+  useEffect(() => {
+    if (data && data.role === "creator") {
+      setLoadingSmsCredit(true);
+      getSmsCredit()
+        .then((res) => {
+          if (res.success) {
+            setSmsCredit(res.credit);
+          } else {
+            console.error("SMS credit load failed:", res.error);
+          }
+        })
+        .catch((err) => console.error("Error fetching SMS credit:", err))
+        .finally(() => setLoadingSmsCredit(false));
+    }
+  }, [getSmsCredit, data]);
 
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Doc<"announcements"> | null>(null);
 
@@ -247,6 +267,13 @@ export default function Home() {
             submetrics={[
               { label: "باقی‌مانده کاربران", value: metrics.ai.totalUserRemainingCredits.toLocaleString(), color: "text-cyan-300" }
             ]}
+          />
+          <MainStatsCard
+            title="اعتبار پنل پیامک (SMS.ir)"
+            value={loadingSmsCredit ? "..." : smsCredit !== null ? `${smsCredit.toLocaleString()} پیامک` : "تنظیم نشده"}
+            icon={<FiMessageSquare />}
+            gradient="from-indigo-500 to-blue-600"
+            loading={loadingSmsCredit}
           />
 
           <div className="glass-panel col-span-1 md:col-span-2 lg:col-span-3 rounded-[2rem] border border-white/5 bg-slate-900/60 p-6 shadow-2xl flex flex-col gap-6 lg:flex-row divide-y lg:divide-y-0 lg:divide-x lg:divide-x-reverse divide-white/10">

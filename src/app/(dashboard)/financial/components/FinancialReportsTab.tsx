@@ -51,8 +51,7 @@ function getJalaliDateString(date: Date): string {
     const formatter = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
       year: "numeric",
       month: "2-digit",
-      day: "2-digit",
-      useGrouping: false
+      day: "2-digit"
     });
     const parts = formatter.format(date).split("/");
     const toEng = (str: string) => {
@@ -209,7 +208,7 @@ export default function FinancialReportsTab() {
         "تاریخ ایجاد"
       ];
 
-      const rows = allFilteredData.data.map((p) => [
+      const rows = allFilteredData.data.map((p: any) => [
         p.userName,
         p.userPhone,
         p.type === "credit" ? "خرید اعتبار هوش مصنوعی" : "اشتراک سالن",
@@ -229,7 +228,7 @@ export default function FinancialReportsTab() {
       let csvContent = "\uFEFF";
       csvContent += [
         headers.join(","),
-        ...rows.map((e) => e.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(","))
+        ...rows.map((e: any) => e.map((val: any) => `"${String(val).replace(/"/g, '""')}"`).join(","))
       ].join("\n");
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -743,7 +742,7 @@ export default function FinancialReportsTab() {
                 </tr>
               ) : (
                 // Real Payments Rows
-                paymentsData.data.map((p) => (
+                paymentsData.data.map((p: any) => (
                   <tr 
                     key={p._id} 
                     className="border-b border-white/5 hover:bg-white/[0.01] transition-colors"

@@ -23,6 +23,7 @@ import type * as cities from "../cities.js";
 import type * as communications_sms from "../communications/sms.js";
 import type * as crons from "../crons.js";
 import type * as dashboard_dashboard from "../dashboard/dashboard.js";
+import type * as dashboard_payments from "../dashboard/payments.js";
 import type * as data_iran_cities from "../data/iran_cities.js";
 import type * as debug from "../debug.js";
 import type * as http from "../http.js";
@@ -67,6 +68,7 @@ import type * as users_reputation from "../users/reputation.js";
 import type * as users_staffSettings from "../users/staffSettings.js";
 import type * as users_staffVacations from "../users/staffVacations.js";
 import type * as users_users from "../users/users.js";
+import type * as utils_paymentGateway from "../utils/paymentGateway.js";
 import type * as utils_sms from "../utils/sms.js";
 
 import type {
@@ -91,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   "communications/sms": typeof communications_sms;
   crons: typeof crons;
   "dashboard/dashboard": typeof dashboard_dashboard;
+  "dashboard/payments": typeof dashboard_payments;
   "data/iran_cities": typeof data_iran_cities;
   debug: typeof debug;
   http: typeof http;
@@ -135,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   "users/staffSettings": typeof users_staffSettings;
   "users/staffVacations": typeof users_staffVacations;
   "users/users": typeof users_users;
+  "utils/paymentGateway": typeof utils_paymentGateway;
   "utils/sms": typeof utils_sms;
 }>;
 

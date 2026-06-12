@@ -18,6 +18,7 @@ export type CPUser = {
   name: string;
   birthdate?: string | null;
   address?: string | null;
+  bankCardNumber?: string;
   role: SupportRole;
   active: boolean;
   createdAt?: string;

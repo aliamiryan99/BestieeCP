@@ -65,6 +65,7 @@ export default function ProfilePage() {
   const [homePhone, setHomePhone] = useState("");
   const [address, setAddress] = useState("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [bankCardNumber, setBankCardNumber] = useState("");
 
   // Password form
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -94,6 +95,7 @@ export default function ProfilePage() {
       setHomePhone(user.homePhone || "");
       setAddress(user.address || "");
       setLocation(user.homeLocation || null);
+      setBankCardNumber(user.bankCardNumber || "");
     }
   }, [user]);
 
@@ -169,6 +171,7 @@ export default function ProfilePage() {
         cityId: cityId || undefined,
         homePhone: homePhone || undefined,
         address: address || undefined,
+        bankCardNumber: bankCardNumber || undefined,
       };
       if (location) {
         data.homeLocation = location;
@@ -415,6 +418,14 @@ export default function ProfilePage() {
               value={nationalCode}
               onChange={setNationalCode}
               placeholder="۰۰۰۰۰۰۰۰۰۰"
+              dir="ltr"
+            />
+            <InputField
+              label="شماره کارت بانکی"
+              icon={<FiCreditCard />}
+              value={bankCardNumber}
+              onChange={setBankCardNumber}
+              placeholder="۶۲۱۹-۸۶۱۰-۱۲۳۴-۵۶۷۸"
               dir="ltr"
             />
             <InputField

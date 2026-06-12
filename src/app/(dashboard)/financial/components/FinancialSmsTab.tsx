@@ -21,7 +21,8 @@ import {
   FiInfo,
   FiFileText,
   FiFilter,
-  FiX
+  FiX,
+  FiEye
 } from "react-icons/fi";
 
 type Period = "hourly" | "daily" | "monthly" | "yearly";
@@ -76,6 +77,7 @@ export default function FinancialSmsTab() {
   const [typeFilter, setTypeFilter] = useState<SmsType>("all");
   const [statusFilter, setStatusFilter] = useState<SmsStatus>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
   const statsQuery = useQuery(api.communications.sms.getSmsStats, { period });
   
@@ -339,9 +341,10 @@ export default function FinancialSmsTab() {
                 <th className="p-4">زمان ارسال</th>
                 <th className="p-4">شماره گیرنده</th>
                 <th className="p-4">نوع پیامک</th>
-                <th className="p-4 w-[40%]">متن پیام</th>
+                <th className="p-4 w-[35%]">متن پیام</th>
                 <th className="p-4 text-center">وضعیت ارسال</th>
                 <th className="p-4">جزئیات پیامک</th>
+                <th className="p-4 text-center">عملیات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-white/80">
@@ -354,11 +357,12 @@ export default function FinancialSmsTab() {
                     <td className="p-4"><div className="h-4 w-4/5 bg-white/5 rounded" /></td>
                     <td className="p-4 text-center"><div className="h-6 w-16 bg-white/5 rounded-full mx-auto" /></td>
                     <td className="p-4"><div className="h-4 w-24 bg-white/5 rounded" /></td>
+                    <td className="p-4 text-center"><div className="h-7 w-7 bg-white/5 rounded-lg mx-auto" /></td>
                   </tr>
                 ))
               ) : !logsQuery || logsQuery.logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-white/35">
+                  <td colSpan={7} className="p-8 text-center text-white/35">
                     هیچ پیامکی با فیلترهای مشخص‌شده یافت نشد.
                   </td>
                 </tr>
@@ -404,6 +408,15 @@ export default function FinancialSmsTab() {
                           خطا: <span className="truncate max-w-[120px] inline-block">{log.error || "خطای ارسال"}</span>
                         </span>
                       )}
+                    </td>
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={() => setSelectedLog(log)}
+                        className="cursor-pointer inline-flex items-center justify-center p-1.5 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white hover:border-indigo-500/30 transition duration-150"
+                        title="مشاهده جزئیات پیامک"
+                      >
+                        <FiEye className="text-sm" />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -462,6 +475,102 @@ export default function FinancialSmsTab() {
           </div>
         )}
       </div>
+
+      {/* ── SMS Detail Modal ── */}
+      {selectedLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300">
+          <div className="glass-panel w-full max-w-lg rounded-3xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl flex flex-col gap-5 relative animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2 text-white font-black text-base">
+                <FiMessageSquare className="text-indigo-400 text-lg" />
+                <span>جزئیات کامل پیامک</span>
+              </div>
+              <button
+                onClick={() => setSelectedLog(null)}
+                className="cursor-pointer h-7 w-7 flex items-center justify-center rounded-xl bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-all"
+              >
+                <FiX className="text-sm" />
+              </button>
+            </div>
+
+            {/* Content Details */}
+            <div className="flex flex-col gap-3.5 text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-white/30">گیرنده</span>
+                  <span className="font-mono text-white text-left font-bold" dir="ltr">{selectedLog.phone}</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-white/30">نوع پیامک</span>
+                  <div>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border ${TYPE_BG[selectedLog.type] || TYPE_BG.system_notification}`}>
+                      {TYPE_LABELS[selectedLog.type as SmsType] || selectedLog.type}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-white/30">زمان ارسال</span>
+                  <span className="text-white/80 font-mono text-left text-xs" dir="ltr">
+                    {new Date(selectedLog.createdAt).toLocaleDateString("fa-IR")} - {new Date(selectedLog.createdAt).toLocaleTimeString("fa-IR", { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-white/30">وضعیت ارسال</span>
+                  <div>
+                    {selectedLog.status === "success" ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-400">
+                        <FiCheckCircle className="text-xs" />
+                        موفق
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] font-bold text-rose-400">
+                        <FiAlertTriangle className="text-xs" />
+                        ناموفق
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-white/30">
+                  {selectedLog.status === "success" ? "شناسه دریافت (Pack ID)" : "متن خطای ارسال"}
+                </span>
+                {selectedLog.status === "success" ? (
+                  <span className="font-mono text-white/80 text-xs bg-white/3 border border-white/5 rounded-xl px-3 py-2 text-left" dir="ltr">
+                    {selectedLog.packId || "-"}
+                  </span>
+                ) : (
+                  <span className="text-rose-300 text-xs bg-rose-500/5 border border-rose-500/10 rounded-xl px-3 py-2 leading-relaxed">
+                    {selectedLog.error || "خطای نامشخص در ارسال پیامک"}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-white/30">متن پیامک</span>
+                <div className="bg-slate-950/80 border border-white/5 rounded-2xl p-4 text-white/90 text-xs leading-relaxed whitespace-pre-wrap text-right font-medium">
+                  {selectedLog.message}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end mt-2 pt-3 border-t border-white/5">
+              <button
+                onClick={() => setSelectedLog(null)}
+                className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-5 py-2 text-xs font-bold text-white transition-all"
+              >
+                بستن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -457,7 +457,7 @@ export default function Home() {
       </MetricGroup>
 
       {/* ── Analytics Charts ───────────────────────────────── */}
-      <DashboardCharts />
+      <DashboardCharts showAiUsage={false} />
 
       <AnimatePresence>
         {selectedAnnouncement && (

@@ -25,6 +25,7 @@ import {
   FiLock,
   FiUnlock,
   FiClock,
+  FiSearch,
 } from "react-icons/fi";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
@@ -141,6 +142,7 @@ function MemberCard({
   actionLoading,
   deletingId,
   cityMap,
+  meRole,
 }: {
   user: StaffUser;
   isCurrentUser: boolean;
@@ -150,6 +152,7 @@ function MemberCard({
   actionLoading: string | null;
   deletingId: string | null;
   cityMap: Record<string, string>;
+  meRole?: "creator" | "promoter";
 }) {
   const role = ROLE_CONFIG[user.role];
   const isActing = actionLoading === user._id;
@@ -306,27 +309,31 @@ function MemberCard({
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => onEdit(user)}
-          className="cursor-pointer flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
-        >
-          <FiEdit3 className="text-orange-300" />
-          ویرایش
-        </button>
+        {(isCurrentUser || meRole === "creator") && (
+          <button
+            onClick={() => onEdit(user)}
+            className="cursor-pointer flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            <FiEdit3 className="text-orange-300" />
+            ویرایش
+          </button>
+        )}
 
-        <button
-          onClick={() => onToggleBan(user)}
-          disabled={isActing}
-          className={`cursor-pointer flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition disabled:opacity-50 ${user.ban
-            ? "border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
-            : "border-red-500/30 text-red-300 hover:bg-red-500/10"
-            }`}
-        >
-          {user.ban ? <FiUnlock /> : <FiLock />}
-          {user.ban ? "رفع مسدودی" : "مسدود کن"}
-        </button>
+        {meRole === "creator" && (
+          <button
+            onClick={() => onToggleBan(user)}
+            disabled={isActing}
+            className={`cursor-pointer flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition disabled:opacity-50 ${user.ban
+              ? "border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+              : "border-red-500/30 text-red-300 hover:bg-red-500/10"
+              }`}
+          >
+            {user.ban ? <FiUnlock /> : <FiLock />}
+            {user.ban ? "رفع مسدودی" : "مسدود کن"}
+          </button>
+        )}
 
-        {!isCurrentUser && (
+        {!isCurrentUser && meRole === "creator" && (
           <button
             onClick={() => onDelete(user)}
             disabled={isDeleting}
@@ -341,6 +348,94 @@ function MemberCard({
   );
 }
 
+// ─── User Search Field ───────────────────────────────────────────────────────
+function UserSearchField({
+  value,
+  selectedUserName,
+  onSelect,
+  onChange,
+  error,
+}: {
+  value: string;
+  selectedUserName?: string;
+  onSelect: (user: any) => void;
+  onChange: (q: string) => void;
+  error?: string;
+}) {
+  const [showResults, setShowResults] = useState(false);
+  const results = useQuery(api.tenants.tenants.searchUsers, { query: value });
+
+  return (
+    <div className="relative">
+      <div className={`flex items-center gap-3 rounded-2xl border bg-white/5 px-4 py-3 transition focus-within:bg-white/8 ${error ? "border-rose-500/50" : "border-white/10 focus-within:border-orange-500/40"
+        }`}>
+        <FiSearch className="text-white/30" />
+        <input
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setShowResults(true);
+          }}
+          onFocus={() => setShowResults(true)}
+          placeholder="جستجو با نام یا شماره تلفن (حداقل ۳ حرف)..."
+          className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/20"
+        />
+        {selectedUserName && (
+          <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+            <FiCheck />
+            {selectedUserName}
+          </div>
+        )}
+      </div>
+
+      {showResults && value.length >= 3 && (
+        <div className="absolute top-full left-0 right-0 z-[100] mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#1e293b]/90 shadow-2xl backdrop-blur-3xl ring-1 ring-white/5">
+          {!results ? (
+            <div className="p-4 text-center text-xs text-white/30 italic">در حال جستجو...</div>
+          ) : results.length === 0 ? (
+            <div className="p-4 text-center text-xs text-white/30 italic">کاربری یافت نشد</div>
+          ) : (
+            <div className="max-h-60 overflow-y-auto p-2">
+              {results.map((user: any) => (
+                <button
+                  key={user._id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(user);
+                    setShowResults(false);
+                  }}
+                  className="cursor-pointer flex w-full items-center justify-between rounded-xl px-4 py-3 text-right transition hover:bg-white/5"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-xs text-white/40">
+                      <FiUser />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-white">{user.name}</p>
+                      <p className="text-[10px] text-white/30 font-mono" dir="ltr">{user.phone}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white/5 px-2 py-1 text-[9px] font-bold text-white/40 uppercase">
+                    {user.role}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {error && <p className="mt-1 text-[11px] text-rose-400">{error}</p>}
+
+      {showResults && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowResults(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Add Member Modal ─────────────────────────────────────────────────────────
 function AddMemberModal({
   open,
@@ -351,7 +446,12 @@ function AddMemberModal({
 }) {
   const me = useQuery(api.users.auth.me);
   const createUser = useMutation(api.users.users.create);
+  const promoteCustomer = useMutation(api.users.users.promoteCustomer);
   const pushToast = useToastStore((state) => state.push);
+
+  const [addType, setAddType] = useState<"new" | "existing">("new");
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -376,6 +476,9 @@ function AddMemberModal({
         gender: "male",
         cityId: "",
       });
+      setAddType("new");
+      setSelectedUser(null);
+      setSearchQuery("");
       setError(null);
     }
   }, [open]);
@@ -384,6 +487,33 @@ function AddMemberModal({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    if (addType === "existing") {
+      if (!selectedUser) {
+        setError("لطفاً یک کاربر را انتخاب کنید");
+        return;
+      }
+      setSaving(true);
+      try {
+        await promoteCustomer({
+          userId: selectedUser._id,
+          role: form.role,
+        });
+        pushToast({
+          type: "success",
+          title: "عضو افزوده شد",
+          message: `${selectedUser.name} با نقش ${ROLE_CONFIG[form.role].label} اضافه شد`,
+        });
+        onClose();
+      } catch (err: any) {
+        setError(err.message ?? "خطا در ارتقای کاربر");
+        pushToast({ type: "error", title: "خطا", message: err.message });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     if (!form.name.trim()) {
       setError("نام الزامی است");
       return;
@@ -443,83 +573,147 @@ function AddMemberModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Name */}
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-white/50">نام و نام خانوادگی *</span>
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 focus-within:border-orange-400/50 transition">
-              <FiUser className="text-white/30 shrink-0" />
-              <input
-                value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-white/20"
-                placeholder="علی رضایی"
-              />
-            </div>
-          </label>
-
-          {/* Phone + Email */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-white/50">شماره موبایل *</span>
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 focus-within:border-orange-400/50 transition">
-                <FiPhone className="text-white/30 shrink-0" />
-                <input
-                  value={form.phone}
-                  dir="ltr"
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-white/20"
-                  placeholder="09123456789"
-                />
-              </div>
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-white/50">ایمیل</span>
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 focus-within:border-orange-400/50 transition">
-                <FiMail className="text-white/30 shrink-0" />
-                <input
-                  value={form.email}
-                  dir="ltr"
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-white/20"
-                  placeholder="name@bestiee.ir"
-                />
-              </div>
-            </label>
-          </div>
-
-          {/* Password + City */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-white/50">رمز عبور *</span>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-orange-400/50 transition"
-                placeholder="حداقل ۴ کاراکتر"
-              />
-            </label>
-            <div className="block space-y-1.5">
-              <CitySelect
-                label="شهر"
-                value={form.cityId}
-                onChange={(id) => setForm(p => ({ ...p, cityId: id }))}
-              />
-            </div>
-          </div>
-
-          {/* Gender */}
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-white/50">جنسیت</span>
-            <select
-              value={form.gender}
-              onChange={(e) => setForm((p) => ({ ...p, gender: e.target.value as "male" | "female" }))}
-              className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
+          {/* Toggle Type */}
+          <div className="flex rounded-2xl bg-white/5 p-1">
+            <button
+              type="button"
+              onClick={() => setAddType("new")}
+              className={`cursor-pointer flex-1 py-2 rounded-xl text-xs font-bold transition ${
+                addType === "new"
+                  ? "bg-white/10 text-white shadow-sm"
+                  : "text-white/30 hover:text-white/50"
+              }`}
             >
-              <option value="male">مرد</option>
-              <option value="female">زن</option>
-            </select>
-          </label>
+              ایجاد کاربر جدید
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddType("existing")}
+              className={`cursor-pointer flex-1 py-2 rounded-xl text-xs font-bold transition ${
+                addType === "existing"
+                  ? "bg-white/10 text-white shadow-sm"
+                  : "text-white/30 hover:text-white/50"
+              }`}
+            >
+              انتخاب از مشتریان موجود
+            </button>
+          </div>
+
+          {addType === "existing" ? (
+            <div className="space-y-4">
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-white/50">جستجوی مشتری *</span>
+                <UserSearchField
+                  value={searchQuery}
+                  selectedUserName={selectedUser?.name}
+                  onSelect={(u) => {
+                    setSelectedUser(u);
+                    setSearchQuery(u.name);
+                  }}
+                  onChange={(q) => {
+                    setSearchQuery(q);
+                    if (selectedUser && selectedUser.name !== q) {
+                      setSelectedUser(null);
+                    }
+                  }}
+                />
+              </label>
+
+              {/* Show selected customer summary */}
+              {selectedUser && (
+                <div className="rounded-2xl border border-white/5 bg-white/5 p-4 space-y-2 animate-fadeIn">
+                  <p className="text-xs text-white/40">مشخصات مشتری انتخاب شده:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <p className="text-white/60">نام: <span className="text-white font-bold">{selectedUser.name}</span></p>
+                    <p className="text-white/60">تلفن: <span className="text-white font-mono">{selectedUser.phone}</span></p>
+                    {selectedUser.email && (
+                      <p className="text-white/60 col-span-2">ایمیل: <span className="text-white font-mono">{selectedUser.email}</span></p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Name */}
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-white/50">نام و نام خانوادگی *</span>
+                <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 focus-within:border-orange-400/50 transition">
+                  <FiUser className="text-white/30 shrink-0" />
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                    className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-white/20"
+                    placeholder="علی رضایی"
+                  />
+                </div>
+              </label>
+
+              {/* Phone + Email */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-white/50">شماره موبایل *</span>
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 focus-within:border-orange-400/50 transition">
+                    <FiPhone className="text-white/30 shrink-0" />
+                    <input
+                      value={form.phone}
+                      dir="ltr"
+                      onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                      className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-white/20"
+                      placeholder="09123456789"
+                    />
+                  </div>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-white/50">ایمیل</span>
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 focus-within:border-orange-400/50 transition">
+                    <FiMail className="text-white/30 shrink-0" />
+                    <input
+                      value={form.email}
+                      dir="ltr"
+                      onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                      className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-white/20"
+                      placeholder="name@bestiee.ir"
+                    />
+                  </div>
+                </label>
+              </div>
+
+              {/* Password + City */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-white/50">رمز عبور *</span>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-orange-400/50 transition"
+                    placeholder="حداقل ۴ کاراکتر"
+                  />
+                </label>
+                <div className="block space-y-1.5">
+                  <CitySelect
+                    label="شهر"
+                    value={form.cityId}
+                    onChange={(id) => setForm(p => ({ ...p, cityId: id }))}
+                  />
+                </div>
+              </div>
+
+              {/* Gender */}
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-white/50">جنسیت</span>
+                <select
+                  value={form.gender}
+                  onChange={(e) => setForm((p) => ({ ...p, gender: e.target.value as "male" | "female" }))}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-orange-400/50 transition"
+                >
+                  <option value="male">مرد</option>
+                  <option value="female">زن</option>
+                </select>
+              </label>
+            </>
+          )}
 
           {/* Error */}
           {error && (
@@ -1093,6 +1287,7 @@ export default function MembersPage() {
               actionLoading={actionLoading}
               deletingId={deletingId}
               cityMap={cityMap}
+              meRole={me?.role}
             />
           ))}
         </div>

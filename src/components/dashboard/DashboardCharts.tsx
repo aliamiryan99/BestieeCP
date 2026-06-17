@@ -107,7 +107,7 @@ const C = {
 const axisStyle = { fill: "rgba(255,255,255,0.25)", fontSize: 10, fontFamily: "inherit" };
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export function DashboardCharts() {
+export function DashboardCharts({ showAiUsage = true }: { showAiUsage?: boolean }) {
   const [period, setPeriod] = useState<Period>("monthly");
   const queryData = useQuery(api.dashboard.dashboard.getAnalyticsChartsData, { period });
 
@@ -267,45 +267,47 @@ export function DashboardCharts() {
       </div>
 
       {/* ── Row 3: AI Usage ──────────────────────────────────── */}
-      <ChartSection
-        title="مصرف هوش مصنوعی"
-        icon={<FiCpu className="text-sm" />}
-        badge="اعتبار مصرف‌شده در هر دوره"
-        trend={aiTrend}
-      >
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          {[
-            { label: "بیشینه در دوره", value: Math.max(...data.map((d: any) => d.aiUsage), 0).toLocaleString(), color: "text-violet-300" },
-            { label: "میانگین", value: Math.round(data.reduce((a: number, d: any) => a + d.aiUsage, 0) / Math.max(1, data.length)).toLocaleString(), color: "text-white" },
-            { label: "کمینه در دوره", value: Math.min(...data.map((d: any) => d.aiUsage), 0).toLocaleString(), color: "text-white/40" },
-          ].map((m) => (
-            <div key={m.label} className="flex flex-col gap-1 rounded-2xl bg-white/4 border border-white/5 px-3 py-2.5">
-              <span className={`text-base font-black font-mono ${m.color}`}>{m.value}</span>
-              <span className="text-[10px] text-white/30">{m.label}</span>
-            </div>
-          ))}
-        </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={data} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gAI" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={C.ai.fill} stopOpacity={0.35} />
-                <stop offset="95%" stopColor={C.ai.fill} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-            <XAxis dataKey="label" tick={axisStyle} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-            <YAxis tick={axisStyle} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
-            <Tooltip content={<CustomTooltip valueFormatter={(v: number) => v.toLocaleString() + " اعتبار"} />} />
-            <ReferenceLine
-              y={data.reduce((a: number, d: any) => a + d.aiUsage, 0) / Math.max(1, data.length)}
-              stroke="rgba(167,139,250,0.25)"
-              strokeDasharray="4 4"
-            />
-            <Area type="monotone" dataKey="aiUsage" name="اعتبار مصرفی" stroke={C.ai.stroke} strokeWidth={2} fill="url(#gAI)" dot={false} activeDot={{ r: 4, fill: C.ai.fill }} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </ChartSection>
+      {showAiUsage && (
+        <ChartSection
+          title="مصرف هوش مصنوعی"
+          icon={<FiCpu className="text-sm" />}
+          badge="اعتبار مصرف‌شده در هر دوره"
+          trend={aiTrend}
+        >
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            {[
+              { label: "بیشینه در دوره", value: Math.max(...data.map((d: any) => d.aiUsage), 0).toLocaleString(), color: "text-violet-300" },
+              { label: "میانگین", value: Math.round(data.reduce((a: number, d: any) => a + d.aiUsage, 0) / Math.max(1, data.length)).toLocaleString(), color: "text-white" },
+              { label: "کمینه در دوره", value: Math.min(...data.map((d: any) => d.aiUsage), 0).toLocaleString(), color: "text-white/40" },
+            ].map((m) => (
+              <div key={m.label} className="flex flex-col gap-1 rounded-2xl bg-white/4 border border-white/5 px-3 py-2.5">
+                <span className={`text-base font-black font-mono ${m.color}`}>{m.value}</span>
+                <span className="text-[10px] text-white/30">{m.label}</span>
+              </div>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={data} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gAI" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={C.ai.fill} stopOpacity={0.35} />
+                  <stop offset="95%" stopColor={C.ai.fill} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="label" tick={axisStyle} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={axisStyle} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
+              <Tooltip content={<CustomTooltip valueFormatter={(v: number) => v.toLocaleString() + " اعتبار"} />} />
+              <ReferenceLine
+                y={data.reduce((a: number, d: any) => a + d.aiUsage, 0) / Math.max(1, data.length)}
+                stroke="rgba(167,139,250,0.25)"
+                strokeDasharray="4 4"
+              />
+              <Area type="monotone" dataKey="aiUsage" name="اعتبار مصرفی" stroke={C.ai.stroke} strokeWidth={2} fill="url(#gAI)" dot={false} activeDot={{ r: 4, fill: C.ai.fill }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartSection>
+      )}
     </div>
   );
 }

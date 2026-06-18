@@ -36,6 +36,14 @@ import {
   FiCheck,
 } from "react-icons/fi";
 
+const socialLabels: Record<string, string> = {
+  telegram: "تلگرام",
+  bale: "بله",
+  whatsapp: "واتس‌اپ",
+  eitaa: "ایتا",
+  rubika: "روبیکا",
+};
+
 export default function SupportPage() {
   const router = useRouter();
   const me = useQuery(api.users.auth.me);
@@ -423,6 +431,12 @@ export default function SupportPage() {
                               <FiPhone className="text-white/30 shrink-0" />
                               <span>تلفن سالن: <a href={`tel:${req.tenantPhone}`} className="hover:text-amber-400 font-mono" dir="ltr">{req.tenantPhone}</a></span>
                             </div>
+                            {req.preferredSocial && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-white/30 shrink-0">📱</span>
+                                <span>شبکه اجتماعی: <strong>{socialLabels[req.preferredSocial]} ({req.socialId || "بدون آیدی"})</strong></span>
+                              </div>
+                            )}
                           </>
                         )}
                         <div className="flex items-start gap-2">
@@ -870,6 +884,9 @@ export default function SupportPage() {
                   <h4 className="font-bold text-white text-xs text-white/40 mb-2">اطلاعات مالک</h4>
                   <p><strong>نام مالک:</strong> {previewRequest.ownerName}</p>
                   <p><strong>تلفن مالک:</strong> <a href={`tel:${previewRequest.ownerPhone}`} className="text-orange-400 hover:underline font-mono" dir="ltr">{previewRequest.ownerPhone}</a></p>
+                  {previewRequest.preferredSocial && (
+                    <p><strong>شبکه اجتماعی:</strong> {socialLabels[previewRequest.preferredSocial]} ({previewRequest.socialId || "بدون آیدی"})</p>
+                  )}
                   <p><strong>ثبت شده در:</strong> {new Date(previewRequest.createdAt).toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" })}</p>
                   {isCreator && previewRequest.user && (
                     <p><strong>ثبت شده توسط:</strong> {previewRequest.user.name}</p>

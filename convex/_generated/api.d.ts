@@ -70,6 +70,7 @@ import type * as users_staffVacations from "../users/staffVacations.js";
 import type * as users_users from "../users/users.js";
 import type * as utils_paymentGateway from "../utils/paymentGateway.js";
 import type * as utils_sms from "../utils/sms.js";
+import type * as utils_smsTemplates from "../utils/smsTemplates.js";
 
 import type {
   ApiFromModules,
@@ -140,6 +141,7 @@ declare const fullApi: ApiFromModules<{
   "users/users": typeof users_users;
   "utils/paymentGateway": typeof utils_paymentGateway;
   "utils/sms": typeof utils_sms;
+  "utils/smsTemplates": typeof utils_smsTemplates;
 }>;
 
 /**

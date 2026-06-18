@@ -363,7 +363,7 @@ export default function Home() {
             <div className="flex flex-col">
               <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-none mb-1">پاداش پلتفرم</span>
               <span className="text-sm font-black text-amber-300 flex items-center gap-1.5 direction-ltr">
-                {Math.round((metrics.score + 0.1 * (metrics.level || 1) * metrics.score) * 1.5 * 1500000).toLocaleString()} تومان
+                {Math.round(metrics.score * (1 + 0.1 * (metrics.level || 1)) * (metrics.scorePrice ?? 1500000)).toLocaleString()} تومان
               </span>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-xl text-white shadow-lg shadow-amber-900/20">
@@ -371,14 +371,14 @@ export default function Home() {
             </div>
 
             {/* Formula Tooltip */}
-            <div className="absolute bottom-full right-0 mb-4 scale-0 opacity-0 transition-all group-hover/reward:scale-100 group-hover/reward:opacity-100 z-50">
+            <div className="absolute bottom-full right-0 mb-4 scale-0 opacity-0 transition-all group-hover/reward:scale-100 group-hover/reward:opacity-100 z-50 animate-in fade-in duration-200">
               <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 shadow-2xl backdrop-blur-xl">
-                <p className="text-[9px] font-bold text-amber-400 uppercase tracking-widest mb-2">فرمول محاسبه پاداش</p>
+                <p className="text-[9px] font-bold text-amber-400 uppercase tracking-widest mb-2 font-vazir">فرمول محاسبه پاداش</p>
                 <code className="text-[9px] text-white/70 font-mono" dir="ltr">
-                  (Score + 0.1 * Lvl * Score) * 1.5 * Price($)
+                  (Score * (1 + 0.1 * Lvl)) * ScorePrice
                 </code>
-                <div className="mt-2 pt-2 border-t border-white/5 text-[9px] text-white/40">
-                  قیمت لحظه‌ای دلار: 150,000 تومان
+                <div className="mt-2 pt-2 border-t border-white/5 text-[9px] text-white/40 font-vazir">
+                  ارزش هر امتیاز (ScorePrice): {(metrics.scorePrice ?? 1500000).toLocaleString()} تومان
                 </div>
               </div>
               <div className="absolute -bottom-2 right-6 h-4 w-4 rotate-45 border-r border-b border-white/10 bg-slate-900/90" />

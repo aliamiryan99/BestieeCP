@@ -14,6 +14,7 @@ import {
   FiZap,
   FiBarChart2,
   FiMessageSquare,
+  FiAward,
 } from "react-icons/fi";
 import { useToastStore } from "@/store/toastStore";
 import FinancialReportsTab from "./components/FinancialReportsTab";
@@ -26,13 +27,17 @@ export default function FinancialPage() {
   const updateSettings = useMutation(api.ai.settings.update);
   const pushToast = useToastStore((state) => state.push);
 
-  const [activeTab, setActiveTab] = useState<"settings" | "reports" | "sms">("reports");
+  const [activeTab, setActiveTab] = useState<"settings" | "reports" | "sms" | "promoter">("reports");
   const [defaultGateway, setDefaultGateway] = useState<"zarinpal" | "jibit" | "zibal">("zarinpal");
+  const [scorePrice, setScorePrice] = useState<number>(1500000);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (settings?.defaultGateway) {
       setDefaultGateway(settings.defaultGateway);
+    }
+    if (settings?.scorePrice !== undefined) {
+      setScorePrice(settings.scorePrice);
     }
   }, [settings]);
 
@@ -95,6 +100,7 @@ export default function FinancialPage() {
     { id: "reports", label: "گزارش‌های مالی", icon: FiBarChart2 },
     { id: "sms", label: "گزارش پیامک‌ها", icon: FiMessageSquare },
     { id: "settings", label: "تنظیمات درگاه", icon: FiSettings },
+    { id: "promoter", label: "تنظیمات پشتیبان", icon: FiAward },
   ] as const;
 
   return (
@@ -284,6 +290,115 @@ export default function FinancialPage() {
                   <FiSave className="text-lg" />
                 )}
                 <span>ذخیره تنظیمات درگاه</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "promoter" && (
+          <div className="glass-panel rounded-3xl border border-white/8 p-8 shadow-xl space-y-8">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                <FiAward className="text-xl" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">تنظیمات پاداش پشتیبانان</h3>
+                <p className="text-sm text-white/40">
+                  قیمت پایه هر امتیاز و فرمول محاسبه تسویه حساب نهایی پشتیبانان پلتفرم
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-6 lg:flex-row">
+              <div className="flex-1 space-y-6">
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-white/70 block">
+                    ارزش ریالی هر امتیاز (تومان)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={scorePrice}
+                      onChange={(e) => setScorePrice(Number(e.target.value))}
+                      className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3.5 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                      dir="ltr"
+                      placeholder="1,500,000"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-sm font-bold">
+                      تومان
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/40 leading-relaxed">
+                    این قیمت مبنای پرداخت در فرمول محاسبه ارزش کل امتیازها قرار می‌گیرد.
+                  </p>
+                </div>
+              </div>
+
+              {/* Formula Simulator Card */}
+              <div className="lg:w-80 shrink-0 bg-white/[0.02] border border-white/10 rounded-3xl p-6 flex flex-col gap-4">
+                <h4 className="text-sm font-bold text-amber-400">فرمول جدید تسویه حساب</h4>
+                <div className="bg-black/20 rounded-xl p-3 border border-white/5 font-mono text-[11px] text-white/70 text-center" dir="ltr">
+                  (Score * (1 + 0.1 * Lvl)) * ScorePrice
+                </div>
+
+                <div className="border-t border-white/5 pt-4 space-y-3">
+                  <span className="text-xs font-bold text-white/50 block">مثال فرضی محاسبه:</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-white/40">امتیاز پشتیبان (Score):</span>
+                    <span className="text-white font-bold">10 امتیاز</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-white/40">سطح پشتیبان (Lvl):</span>
+                    <span className="text-white font-bold">سطح 3</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-white/40">ضریب سطح:</span>
+                    <span className="text-white font-bold">1.3x</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/5 rounded-xl p-3 border border-white/5 mt-2">
+                    <span className="text-xs text-white/50">پاداش نهایی:</span>
+                    <span className="text-sm font-black text-amber-300">
+                      {Math.round(10 * (1 + 0.1 * 3) * scorePrice).toLocaleString("fa-IR")} تومان
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end pt-4 border-t border-white/5">
+              <button
+                onClick={async () => {
+                  setIsSaving(true);
+                  try {
+                    await updateSettings({
+                      scorePrice,
+                    });
+                    pushToast({
+                      type: "success",
+                      title: "تنظیمات ذخیره شد",
+                      message: "تنظیمات پاداش پشتیبانان با موفقیت به‌روزرسانی شد.",
+                    });
+                  } catch (error) {
+                    console.error(error);
+                    pushToast({
+                      type: "error",
+                      title: "خطا در ذخیره",
+                      message: error instanceof Error ? error.message : "مشکلی در ذخیره تنظیمات رخ داد.",
+                    });
+                  } finally {
+                    setIsSaving(false);
+                  }
+                }}
+                disabled={isSaving}
+                className="cursor-pointer flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-8 py-3.5 text-sm font-bold text-white shadow-xl shadow-emerald-500/10 hover:shadow-emerald-500/25 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isSaving ? (
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <FiSave className="text-lg" />
+                )}
+                <span>ذخیره تنظیمات پشتیبان</span>
               </button>
             </div>
           </div>

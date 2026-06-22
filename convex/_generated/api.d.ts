@@ -11,9 +11,11 @@
 import type * as ai_ai from "../ai/ai.js";
 import type * as ai_archiveResults from "../ai/archiveResults.js";
 import type * as ai_catalog from "../ai/catalog.js";
+import type * as ai_chat from "../ai/chat.js";
 import type * as ai_credit_plans from "../ai/credit_plans.js";
 import type * as ai_providers from "../ai/providers.js";
 import type * as ai_settings from "../ai/settings.js";
+import type * as ai_stats from "../ai/stats.js";
 import type * as announcements_announcements from "../announcements/announcements.js";
 import type * as auth from "../auth.js";
 import type * as bookings_bookings from "../bookings/bookings.js";
@@ -82,9 +84,11 @@ declare const fullApi: ApiFromModules<{
   "ai/ai": typeof ai_ai;
   "ai/archiveResults": typeof ai_archiveResults;
   "ai/catalog": typeof ai_catalog;
+  "ai/chat": typeof ai_chat;
   "ai/credit_plans": typeof ai_credit_plans;
   "ai/providers": typeof ai_providers;
   "ai/settings": typeof ai_settings;
+  "ai/stats": typeof ai_stats;
   "announcements/announcements": typeof announcements_announcements;
   auth: typeof auth;
   "bookings/bookings": typeof bookings_bookings;

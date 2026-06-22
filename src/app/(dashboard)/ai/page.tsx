@@ -11,15 +11,17 @@ import {
   FiSettings,
   FiActivity,
   FiImage,
+  FiMessageSquare,
 } from "react-icons/fi";
 
 import FinancialTab from "./components/FinancialTab";
 import ModelsTab from "./components/ModelsTab";
 import StatisticsTab from "./components/StatisticsTab";
 import TasksTab from "./components/TasksTab";
+import ChatStatsTab from "./components/ChatStatsTab";
 
 export default function AIManagerPage() {
-  const [activeTab, setActiveTab] = useState<"financial" | "models" | "stats" | "tasks">(
+  const [activeTab, setActiveTab] = useState<"financial" | "models" | "stats" | "tasks" | "chatStats">(
     "stats",
   );
   const me = useQuery(api.users.auth.me);
@@ -60,6 +62,7 @@ export default function AIManagerPage() {
 
   const tabs = [
     { id: "stats", label: "آمار", icon: FiActivity },
+    { id: "chatStats", label: "آمار گفتگو", icon: FiMessageSquare },
     { id: "financial", label: "مالی و سود", icon: FiDollarSign },
     { id: "models", label: "پارامترهای مدل", icon: FiCpu },
     { id: "tasks", label: "درخواست‌ها", icon: FiImage },
@@ -107,6 +110,7 @@ export default function AIManagerPage() {
         {activeTab === "stats" && (
           <StatisticsTab metrics={metricsData?.metrics} />
         )}
+        {activeTab === "chatStats" && <ChatStatsTab />}
         {activeTab === "financial" && <FinancialTab settings={settings} />}
         {activeTab === "models" && <ModelsTab settings={settings} />}
         {activeTab === "tasks" && <TasksTab />}

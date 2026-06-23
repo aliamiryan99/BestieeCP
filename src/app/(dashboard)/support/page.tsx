@@ -18,7 +18,7 @@ const RequestPreviewMap = dynamic(
   }
 );
 import { useToastStore } from "@/store/toastStore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FiMessageSquare,
   FiMail,
@@ -46,6 +46,7 @@ const socialLabels: Record<string, string> = {
 
 export default function SupportPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const me = useQuery(api.users.auth.me);
   const contactMessages = useQuery(api.support.listContactMessages);
   const tenantRequests = useQuery(api.support.listTenantRequests);
@@ -65,7 +66,31 @@ export default function SupportPage() {
     return tenantRequests.some((req: any) => req.status === "contacted" && req.contactedById === me._id);
   }, [tenantRequests, isCreator, me]);
 
-  const [activeTab, setActiveTab] = useState<"requests" | "messages" | "tickets">("requests");
+  const [activeTab, setActiveTab] = useState<"requests" | "messages" | "tickets">((() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "requests" || tabParam === "messages" || tabParam === "tickets") {
+      return tabParam;
+    }
+    return "requests";
+  })());
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "requests" || tabParam === "messages" || tabParam === "tickets") {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab === "requests") {
+      params.delete("tab");
+    } else {
+      params.set("tab", activeTab);
+    }
+    const newQuery = params.toString() ? `?${params.toString()}` : "";
+    window.history.replaceState(null, "", `${window.location.pathname}${newQuery}`);
+  }, [activeTab]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   
   // State for "It's Added" modal

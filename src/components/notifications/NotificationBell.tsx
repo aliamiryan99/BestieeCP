@@ -16,6 +16,8 @@ import {
   FiArrowUp,
   FiInbox,
   FiChevronRight,
+  FiMessageSquare,
+  FiMail,
 } from "react-icons/fi";
 import Link from "next/link";
 
@@ -43,6 +45,9 @@ type NotificationData = {
     newTenants?: AggregateItem;
     newMembers?: AggregateItem;
     newUsers?: AggregateItem;
+    newTenantRequests?: AggregateItem;
+    newContactMessages?: AggregateItem;
+    newSupportTickets?: AggregateItem;
   };
   events: NotifEvent[];
   totalUnread: number;
@@ -218,9 +223,12 @@ export function NotificationBell() {
   const role = notifData?.role;
 
   const hasAnyContent =
-    (aggregates as any).newTenants?.count > 0 ||
-    (aggregates as any).newMembers?.count > 0 ||
-    (aggregates as any).newUsers?.count > 0 ||
+    ((aggregates as any).newTenants?.count ?? 0) > 0 ||
+    ((aggregates as any).newMembers?.count ?? 0) > 0 ||
+    ((aggregates as any).newUsers?.count ?? 0) > 0 ||
+    ((aggregates as any).newTenantRequests?.count ?? 0) > 0 ||
+    ((aggregates as any).newContactMessages?.count ?? 0) > 0 ||
+    ((aggregates as any).newSupportTickets?.count ?? 0) > 0 ||
     events.length > 0;
 
   return (
@@ -319,9 +327,12 @@ export function NotificationBell() {
               {!loading && hasAnyContent && (
                 <>
                   {/* ── Aggregate Section ── */}
-                  {((aggregates as any).newTenants?.count > 0 ||
-                    (aggregates as any).newMembers?.count > 0 ||
-                    (aggregates as any).newUsers?.count > 0) && (
+                  {(((aggregates as any).newTenants?.count ?? 0) > 0 ||
+                    ((aggregates as any).newMembers?.count ?? 0) > 0 ||
+                    ((aggregates as any).newUsers?.count ?? 0) > 0 ||
+                    ((aggregates as any).newTenantRequests?.count ?? 0) > 0 ||
+                    ((aggregates as any).newContactMessages?.count ?? 0) > 0 ||
+                    ((aggregates as any).newSupportTickets?.count ?? 0) > 0) && (
                     <div className="flex flex-col gap-2">
                       <p className="px-1 text-[10px] font-bold uppercase tracking-widest text-white/25">
                         رویدادهای جدید
@@ -353,18 +364,68 @@ export function NotificationBell() {
                             linkHref={`/users?since=${(aggregates as any).newUsers?.cursor ?? 0}`}
                             onMarkSeen={handleMarkCategory}
                           />
+                          <AggregateRow
+                            icon={<FiInbox className="text-base" />}
+                            label="درخواست ثبت‌نام"
+                            count={(aggregates as any).newTenantRequests?.count ?? 0}
+                            category="tenant_requests"
+                            linkHref="/support?tab=requests"
+                            onMarkSeen={handleMarkCategory}
+                          />
+                          <AggregateRow
+                            icon={<FiMessageSquare className="text-base" />}
+                            label="تیکت پشتیبانی"
+                            count={(aggregates as any).newSupportTickets?.count ?? 0}
+                            category="support_tickets"
+                            linkHref="/support?tab=tickets"
+                            onMarkSeen={handleMarkCategory}
+                          />
+                          <AggregateRow
+                            icon={<FiMail className="text-base" />}
+                            label="پیام تماس"
+                            count={(aggregates as any).newContactMessages?.count ?? 0}
+                            category="contact_messages"
+                            linkHref="/support?tab=messages"
+                            onMarkSeen={handleMarkCategory}
+                          />
                         </>
                       )}
 
                       {role === "promoter" && (
-                        <AggregateRow
-                          icon={<FiUserCheck className="text-base" />}
-                          label="کاربر"
-                          count={(aggregates as any).newUsers?.count ?? 0}
-                          category="promoter_users"
-                          linkHref={`/users?since=${(aggregates as any).newUsers?.cursor ?? 0}`}
-                          onMarkSeen={handleMarkCategory}
-                        />
+                        <>
+                          <AggregateRow
+                            icon={<FiUserCheck className="text-base" />}
+                            label="کاربر"
+                            count={(aggregates as any).newUsers?.count ?? 0}
+                            category="promoter_users"
+                            linkHref={`/users?since=${(aggregates as any).newUsers?.cursor ?? 0}`}
+                            onMarkSeen={handleMarkCategory}
+                          />
+                          <AggregateRow
+                            icon={<FiInbox className="text-base" />}
+                            label="درخواست ثبت‌نام"
+                            count={(aggregates as any).newTenantRequests?.count ?? 0}
+                            category="tenant_requests"
+                            linkHref="/support?tab=requests"
+                            onMarkSeen={handleMarkCategory}
+                          />
+                          <AggregateRow
+                            icon={<FiMessageSquare className="text-base" />}
+                            label="تیکت پشتیبانی"
+                            count={(aggregates as any).newSupportTickets?.count ?? 0}
+                            category="support_tickets"
+                            linkHref="/support?tab=tickets"
+                            onMarkSeen={handleMarkCategory}
+                          />
+                          <AggregateRow
+                            icon={<FiMail className="text-base" />}
+                            label="پیام تماس"
+                            count={(aggregates as any).newContactMessages?.count ?? 0}
+                            category="contact_messages"
+                            linkHref="/support?tab=messages"
+                            onMarkSeen={handleMarkCategory}
+                          />
+                        </>
                       )}
                     </div>
                   )}

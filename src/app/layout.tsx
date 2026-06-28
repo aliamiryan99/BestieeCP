@@ -8,6 +8,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Bestiee CP",
   description: "Admin dashboard panel to manage the barbers",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
   icons: [
     {
       rel: "icon",

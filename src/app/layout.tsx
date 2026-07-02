@@ -13,18 +13,6 @@ export const metadata: Metadata = {
     follow: false,
     nocache: true,
   },
-  icons: [
-    {
-      rel: "icon",
-      url: `barbers.png`,
-      type: "image/png",
-      sizes: "any",
-    },
-    {
-      rel: "apple-touch-icon",
-      url: `barbers.png`,
-    },
-  ],
 };
 
 export default function RootLayout({

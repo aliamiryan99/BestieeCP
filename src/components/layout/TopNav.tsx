@@ -22,6 +22,7 @@ import {
   FiCpu,
   FiMessageSquare,
   FiDollarSign,
+  FiInfo,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -46,6 +47,7 @@ export function TopNav() {
     ...(user?.role === "creator" || user?.role === "promoter" ? [{ href: "/members", label: "اعضا", icon: FiUsers }] : []),
     ...(user?.role === "creator" || user?.role === "promoter" ? [{ href: "/users", label: "کاربران", icon: FiUserCheck }] : []),
     ...(user?.role === "creator" || user?.role === "promoter" ? [{ href: "/support", label: "پشتیبانی", icon: FiMessageSquare }] : []),
+    ...(user?.role === "promoter" ? [{ href: "/help", label: "راهنما", icon: FiInfo }] : []),
     ...(user?.role === "creator" ? [{ href: "/constants", label: "ثابت‌ها", icon: FiDatabase }] : []),
     ...(user?.role === "creator" ? [{ href: "/ai", label: "هوش مصنوعی", icon: FiCpu }] : []),
     ...(user?.role === "creator" ? [{ href: "/financial", label: "مالی", icon: FiDollarSign }] : []),

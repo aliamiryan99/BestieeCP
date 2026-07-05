@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as ai_agent from "../ai/agent.js";
 import type * as ai_ai from "../ai/ai.js";
 import type * as ai_archiveResults from "../ai/archiveResults.js";
 import type * as ai_catalog from "../ai/catalog.js";
@@ -16,6 +17,7 @@ import type * as ai_credit_plans from "../ai/credit_plans.js";
 import type * as ai_providers from "../ai/providers.js";
 import type * as ai_settings from "../ai/settings.js";
 import type * as ai_stats from "../ai/stats.js";
+import type * as ai_tools from "../ai/tools.js";
 import type * as announcements_announcements from "../announcements/announcements.js";
 import type * as auth from "../auth.js";
 import type * as bookings_bookings from "../bookings/bookings.js";
@@ -81,6 +83,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "ai/agent": typeof ai_agent;
   "ai/ai": typeof ai_ai;
   "ai/archiveResults": typeof ai_archiveResults;
   "ai/catalog": typeof ai_catalog;
@@ -89,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   "ai/providers": typeof ai_providers;
   "ai/settings": typeof ai_settings;
   "ai/stats": typeof ai_stats;
+  "ai/tools": typeof ai_tools;
   "announcements/announcements": typeof announcements_announcements;
   auth: typeof auth;
   "bookings/bookings": typeof bookings_bookings;

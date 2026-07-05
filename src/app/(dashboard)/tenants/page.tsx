@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FiSearch,
@@ -23,6 +23,7 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiRefreshCw,
+  FiAward,
 } from "react-icons/fi";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
@@ -112,20 +113,155 @@ function DeleteConfirmModal({ tenant, onConfirm, onCancel, loading }: {
   );
 }
 
+// ─── Gift Plan Modal ─────────────────────────────────────────────────────────
+function GiftPlanModal({
+  tenant,
+  plans,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  tenant: EnrichedTenant;
+  plans: any[] | undefined;
+  onConfirm: (planId: string, billingCycle: "monthly" | "yearly") => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+
+  const filteredPlans = useMemo(() => {
+    return plans?.filter(p => p.key === "pro" || p.key === "ultra") || [];
+  }, [plans]);
+
+  // Auto-select first plan when loaded
+  useEffect(() => {
+    if (filteredPlans.length > 0 && !selectedPlanId) {
+      setSelectedPlanId(filteredPlans[0]._id);
+    }
+  }, [filteredPlans, selectedPlanId]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-8 shadow-2xl text-right"
+        dir="rtl"
+      >
+        <div className="flex flex-col gap-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <FiAward className="text-2xl text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-white">اهدا طرح هدیه</h3>
+              <p className="text-xs text-white/40 mt-0.5">ثبت اشتراک ویژه به عنوان هدیه برای شعبه {tenant.name}</p>
+            </div>
+          </div>
+
+          <hr className="border-white/5" />
+
+          {/* Plan selection */}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-white/50 px-1">انتخاب طرح</label>
+            <div className="grid grid-cols-2 gap-3">
+              {filteredPlans.map((plan) => {
+                const isSelected = selectedPlanId === plan._id;
+                return (
+                  <button
+                    key={plan._id}
+                    type="button"
+                    onClick={() => setSelectedPlanId(plan._id)}
+                    className={`cursor-pointer rounded-2xl border p-4 text-center transition-all ${
+                      isSelected
+                        ? "border-amber-500 bg-amber-500/10 text-white font-bold"
+                        : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <span className="block text-sm">{plan.name}</span>
+                    <span className="block text-[10px] text-white/40 mt-1">سقف {plan.maxStaff === -1 ? "نامحدود" : `${plan.maxStaff} کاربر`}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Billing Cycle selection */}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-white/50 px-1">دوره اشتراک</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: "monthly", label: "ماهانه (۳۰ روز)" },
+                { key: "yearly", label: "سالانه (۳۶۵ روز)" },
+              ].map((cycle) => {
+                const isSelected = billingCycle === cycle.key;
+                return (
+                  <button
+                    key={cycle.key}
+                    type="button"
+                    onClick={() => setBillingCycle(cycle.key as "monthly" | "yearly")}
+                    className={`cursor-pointer rounded-2xl border p-3.5 text-center transition-all ${
+                      isSelected
+                        ? "border-amber-500 bg-amber-500/10 text-white font-bold"
+                        : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <span className="text-sm">{cycle.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-3">
+            <button
+              onClick={onCancel}
+              disabled={loading}
+              className="cursor-pointer flex-1 rounded-2xl border border-white/10 py-3 text-sm text-white/70 transition hover:bg-white/5"
+            >
+              انصراف
+            </button>
+            <button
+              onClick={() => onConfirm(selectedPlanId, billingCycle)}
+              disabled={loading || !selectedPlanId}
+              className="cursor-pointer flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+              ) : (
+                <>
+                  <FiAward className="text-base" />
+                  ثبت طرح هدیه
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── Tenant Card ──────────────────────────────────────────────────────────────
 function TenantCard({
   tenant,
   onDelete,
   onExtend,
+  onGiftPlan,
   canDelete,
   canExtend,
+  isCreator,
   extending,
 }: {
   tenant: EnrichedTenant;
   onDelete: (t: EnrichedTenant) => void;
   onExtend: (t: EnrichedTenant) => void;
+  onGiftPlan: (t: EnrichedTenant) => void;
   canDelete: boolean;
   canExtend: boolean;
+  isCreator: boolean;
   extending: boolean;
 }) {
   const typeConfig = TYPE_CONFIG[tenant.type] || TYPE_CONFIG.barbers;
@@ -272,6 +408,15 @@ function TenantCard({
               {extending ? "در حال تمدید..." : "تمدید ۷ روز"}
             </button>
           )}
+          {isCreator && (
+            <button
+              onClick={() => onGiftPlan(tenant)}
+              className="cursor-pointer flex items-center gap-1 rounded-xl border border-amber-800/40 bg-amber-900/10 px-2.5 py-1 text-[11px] text-amber-300 transition hover:bg-amber-900/30"
+            >
+              <FiAward className="text-[10px]" />
+              هدیه طرح
+            </button>
+          )}
           <button
             onClick={() => router.push(`/tenants/${tenant._id}/edit`)}
             className="cursor-pointer flex items-center gap-1 rounded-xl border border-indigo-800/40 bg-indigo-900/10 px-2.5 py-1 text-[11px] text-indigo-300 transition hover:bg-indigo-900/30"
@@ -339,6 +484,8 @@ export default function TenantsPage() {
   const rawTenants = useQuery(api.tenants.tenants.listAll);
   const removeTenant = useMutation(api.tenants.tenants.remove);
   const extendActivityWindow = useMutation(api.tenants.tenants.extendActivityWindow);
+  const giftTenantPlan = useMutation(api.tenants.plans.giftTenantPlan);
+  const rawPlans = useQuery(api.tenants.plans.list);
   const pushToast = useToastStore((state) => state.push);
 
   const [search, setSearch] = useState("");
@@ -353,6 +500,8 @@ export default function TenantsPage() {
   const [deleteTarget, setDeleteTarget] = useState<EnrichedTenant | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [extendingTenantId, setExtendingTenantId] = useState<string | null>(null);
+  const [giftTarget, setGiftTarget] = useState<EnrichedTenant | null>(null);
+  const [gifting, setGifting] = useState(false);
 
   const tenants = rawTenants as EnrichedTenant[] | undefined;
   const loading = me === undefined || rawTenants === undefined;
@@ -425,6 +574,32 @@ export default function TenantsPage() {
       pushToast({ type: "error", title: "خطا در تمدید", message: getErrorMessage(e, "امکان تمدید مهلت وجود ندارد") });
     } finally {
       setExtendingTenantId(null);
+    }
+  };
+
+  const handleGift = async (planId: string, billingCycle: "monthly" | "yearly") => {
+    if (!giftTarget) return;
+    setGifting(true);
+    try {
+      await giftTenantPlan({
+        tenantId: giftTarget._id,
+        planId: planId as any,
+        billingCycle,
+      });
+      pushToast({
+        type: "success",
+        title: "طرح هدیه ثبت شد",
+        message: `طرح با موفقیت به شعبه ${giftTarget.name} اهدا گردید.`,
+      });
+      setGiftTarget(null);
+    } catch (e: unknown) {
+      pushToast({
+        type: "error",
+        title: "خطا در ثبت طرح",
+        message: getErrorMessage(e, "امکان ثبت طرح هدیه وجود ندارد"),
+      });
+    } finally {
+      setGifting(false);
     }
   };
 
@@ -608,8 +783,10 @@ export default function TenantsPage() {
               tenant={tenant}
               onDelete={setDeleteTarget}
               onExtend={handleExtend}
+              onGiftPlan={setGiftTarget}
               canDelete={me?.role === "creator"}
               canExtend={me?.role === "creator" || me?.role === "promoter"}
+              isCreator={me?.role === "creator"}
               extending={extendingTenantId === tenant._id}
             />
           ))}
@@ -624,6 +801,19 @@ export default function TenantsPage() {
             onConfirm={handleDelete}
             onCancel={() => setDeleteTarget(null)}
             loading={deleting}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Gift Plan Modal */}
+      <AnimatePresence>
+        {giftTarget && (
+          <GiftPlanModal
+            tenant={giftTarget}
+            plans={rawPlans}
+            onConfirm={handleGift}
+            onCancel={() => setGiftTarget(null)}
+            loading={gifting}
           />
         )}
       </AnimatePresence>

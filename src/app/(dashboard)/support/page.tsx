@@ -364,7 +364,7 @@ export default function SupportPage() {
                 : "text-white/50 hover:text-white border border-transparent"
             }`}
           >
-            <span className="hidden sm:inline">پیام‌های تماس</span>
+            <span className="hidden sm:inline">پیام‌های کاربران</span>
             <span className="sm:hidden">پیام‌ها</span>
             {" "}
             <span>({contactMessages?.length ?? 0})</span>
@@ -699,7 +699,7 @@ export default function SupportPage() {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               {contactMessages?.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-white/30 text-sm">
-                  هیچ پیام تماسی در پلتفرم وجود ندارد.
+                  هیچ پیامی از کاربران در پلتفرم وجود ندارد.
                 </div>
               ) : (
                 contactMessages?.map((msg: any) => {

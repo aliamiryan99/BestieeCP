@@ -491,14 +491,14 @@ export default function UsersPage() {
 
   const loading = me === undefined || rawUsers === undefined;
 
-  if (!loading && me?.role !== "creator" && me?.role !== "promoter") {
+  if (!loading && me?.role !== "creator") {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/10 border border-rose-500/20">
           <FiSlash className="text-2xl text-rose-400" />
         </div>
         <p className="text-lg font-bold text-white">دسترسی ندارید</p>
-        <p className="text-sm text-white/40">مدیریت کاربران فقط برای نقش خالق و پشتیبان قابل دسترس است.</p>
+        <p className="text-sm text-white/40">مدیریت کاربران فقط برای نقش خالق قابل دسترس است.</p>
         <button onClick={() => router.push("/")} className="cursor-pointer mt-4 rounded-2xl border border-white/10 px-6 py-2.5 text-sm text-white/60 hover:bg-white/5 transition">
           بازگشت به داشبورد
         </button>

@@ -5,6 +5,7 @@ import { useQuery, useAction } from "convex/react";
 import { api } from "@backend/api";
 import { MainStatsCard, MetricGroup, AICreditBar } from "@/components/dashboard/DashboardCards";
 import { FiUsers, FiUser, FiAward, FiStar, FiCpu, FiTrendingUp, FiActivity, FiX, FiMessageSquare } from "react-icons/fi";
+import { BsPinAngleFill } from "react-icons/bs";
 import Link from "next/link";
 import { Doc } from "@backend/dataModel";
 import { motion, AnimatePresence } from "framer-motion";
@@ -124,6 +125,11 @@ export default function Home() {
               onClick={() => setSelectedAnnouncement(announcement)}
               className="cursor-pointer group relative flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/5 p-6 transition-all duration-300 hover:bg-white/8 hover:border-orange-500/40 hover:translate-y-[-2px] hover:shadow-[0_20px_40px_-20px_rgba(249,115,22,0.3)]"
             >
+              {announcement.pinned && (
+                <div className="absolute top-6 left-6 text-orange-400">
+                  <BsPinAngleFill className="h-3.5 w-3.5" />
+                </div>
+              )}
               <div className="flex flex-col gap-1.5">
                 <p className="text-sm font-black text-white group-hover:text-orange-300 transition-colors">{announcement.title}</p>
                 <p className="text-xs text-white/50 leading-relaxed line-clamp-2 font-medium">{announcement.content}</p>

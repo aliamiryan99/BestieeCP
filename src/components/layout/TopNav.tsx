@@ -45,7 +45,7 @@ export function TopNav() {
     { href: "/", label: "داشبورد", icon: FiHome },
     { href: "/tenants", label: "شعب", icon: FiScissors },
     ...(user?.role === "creator" || user?.role === "promoter" ? [{ href: "/members", label: "اعضا", icon: FiUsers }] : []),
-    ...(user?.role === "creator" || user?.role === "promoter" ? [{ href: "/users", label: "کاربران", icon: FiUserCheck }] : []),
+    ...(user?.role === "creator" ? [{ href: "/users", label: "کاربران", icon: FiUserCheck }] : []),
     ...(user?.role === "creator" || user?.role === "promoter" ? [{ href: "/support", label: "پشتیبانی", icon: FiMessageSquare }] : []),
     ...(user?.role === "promoter" ? [{ href: "/help", label: "راهنما", icon: FiInfo }] : []),
     ...(user?.role === "creator" ? [{ href: "/constants", label: "ثابت‌ها", icon: FiDatabase }] : []),

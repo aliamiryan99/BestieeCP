@@ -382,7 +382,7 @@ export function NotificationBell() {
                           />
                           <AggregateRow
                             icon={<FiMail className="text-base" />}
-                            label="پیام تماس"
+                            label="پیام کاربران"
                             count={(aggregates as any).newContactMessages?.count ?? 0}
                             category="contact_messages"
                             linkHref="/support?tab=messages"
@@ -393,14 +393,6 @@ export function NotificationBell() {
 
                       {role === "promoter" && (
                         <>
-                          <AggregateRow
-                            icon={<FiUserCheck className="text-base" />}
-                            label="کاربر"
-                            count={(aggregates as any).newUsers?.count ?? 0}
-                            category="promoter_users"
-                            linkHref={`/users?since=${(aggregates as any).newUsers?.cursor ?? 0}`}
-                            onMarkSeen={handleMarkCategory}
-                          />
                           <AggregateRow
                             icon={<FiInbox className="text-base" />}
                             label="درخواست ثبت‌نام"
@@ -419,7 +411,7 @@ export function NotificationBell() {
                           />
                           <AggregateRow
                             icon={<FiMail className="text-base" />}
-                            label="پیام تماس"
+                            label="پیام کاربران"
                             count={(aggregates as any).newContactMessages?.count ?? 0}
                             category="contact_messages"
                             linkHref="/support?tab=messages"

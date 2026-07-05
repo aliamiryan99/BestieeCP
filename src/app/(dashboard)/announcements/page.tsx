@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FiArrowRight, FiPlus, FiTrash2, FiClock, FiFileText, FiTag, FiAlertCircle, FiBell } from "react-icons/fi";
+import { FiArrowRight, FiPlus, FiTrash2, FiClock, FiFileText, FiTag, FiAlertCircle, FiBell, FiEdit2 } from "react-icons/fi";
+import { BsPinAngle, BsPinAngleFill } from "react-icons/bs";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
@@ -14,6 +15,8 @@ export default function AnnouncementsPage() {
   const announcements = useQuery(api.announcements.announcements.list);
   const createAnnouncement = useMutation(api.announcements.announcements.create);
   const removeAnnouncement = useMutation(api.announcements.announcements.remove);
+  const updateAnnouncement = useMutation(api.announcements.announcements.update);
+  const togglePin = useMutation(api.announcements.announcements.togglePin);
   const pushToast = useToastStore((state) => state.push);
 
   const [isAdding, setIsAdding] = useState(false);
@@ -22,6 +25,7 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(false);
   const [deleteId, setDeleteId] = useState<Id<"announcements"> | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Doc<"announcements"> | null>(null);
 
   const isCreator = me?.role === "creator";
 
@@ -31,21 +35,35 @@ export default function AnnouncementsPage() {
 
     setLoading(true);
     try {
-      await createAnnouncement({ title, content });
+      if (editingAnnouncement) {
+        await updateAnnouncement({
+          announcementId: editingAnnouncement._id,
+          title,
+          content,
+        });
+        pushToast({
+          type: "success",
+          title: "اطلاعیه ویرایش شد",
+          message: "اطلاعیه با موفقیت بروزرسانی گردید.",
+        });
+      } else {
+        await createAnnouncement({ title, content });
+        pushToast({
+          type: "success",
+          title: "اطلاعیه ثبت شد",
+          message: "اطلاعیه جدید با موفقیت منتشر گردید.",
+        });
+      }
       setTitle("");
       setContent("");
+      setEditingAnnouncement(null);
       setIsAdding(false);
-      pushToast({
-        type: "success",
-        title: "اطلاعیه ثبت شد",
-        message: "اطلاعیه جدید با موفقیت منتشر گردید.",
-      });
     } catch (error) {
-      console.error("Failed to add announcement", error);
+      console.error("Failed to save announcement", error);
       pushToast({
         type: "error",
         title: "خطا",
-        message: "مشکلی در ثبت اطلاعیه به وجود آمد.",
+        message: "مشکلی در ذخیره اطلاعیه به وجود آمد.",
       });
     } finally {
       setLoading(false);
@@ -105,7 +123,19 @@ export default function AnnouncementsPage() {
         
         {isCreator && (
           <button
-            onClick={() => setIsAdding(!isAdding)}
+            onClick={() => {
+              if (isAdding) {
+                setIsAdding(false);
+                setEditingAnnouncement(null);
+                setTitle("");
+                setContent("");
+              } else {
+                setIsAdding(true);
+                setEditingAnnouncement(null);
+                setTitle("");
+                setContent("");
+              }
+            }}
             className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-lg ${
               isAdding 
                 ? "bg-white/5 text-white/60 border border-white/10" 
@@ -134,7 +164,9 @@ export default function AnnouncementsPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/10">
                 <FiTag />
               </div>
-              <h2 className="text-xl font-bold text-white">ثبت اطلاعیه جدید</h2>
+              <h2 className="text-xl font-bold text-white">
+                {editingAnnouncement ? "ویرایش اطلاعیه" : "ثبت اطلاعیه جدید"}
+              </h2>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -177,8 +209,12 @@ export default function AnnouncementsPage() {
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               ) : (
                 <>
-                  ثبت و انتشار
-                  <FiPlus className="transition-transform group-hover:rotate-90 duration-300" />
+                  {editingAnnouncement ? "ثبت تغییرات" : "ثبت و انتشار"}
+                  {editingAnnouncement ? (
+                    <FiEdit2 className="transition-transform duration-300 text-base" />
+                  ) : (
+                    <FiPlus className="transition-transform group-hover:rotate-90 duration-300" />
+                  )}
                 </>
               )}
             </button>
@@ -215,9 +251,17 @@ export default function AnnouncementsPage() {
                   </div>
                   <h2 className="text-lg md:text-xl font-bold text-white leading-tight">{announcement.title}</h2>
                 </div>
-                <div className="flex items-center gap-2 self-end sm:self-auto rounded-xl bg-white/5 border border-white/5 px-3 py-1.5 text-[10px] font-black text-white/40 uppercase tracking-tighter shrink-0">
-                  <FiClock className="h-3 w-3" />
-                  {timeSince(announcement._creationTime)}
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
+                  {announcement.pinned && (
+                    <div className="flex items-center gap-1.5 rounded-xl bg-orange-500/15 border border-orange-500/20 px-3 py-1.5 text-[10px] font-black text-orange-400 uppercase tracking-tighter shrink-0 animate-pulse">
+                      <BsPinAngleFill className="h-3 w-3" />
+                      سنجاق شده
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/5 px-3 py-1.5 text-[10px] font-black text-white/40 uppercase tracking-tighter shrink-0">
+                    <FiClock className="h-3 w-3" />
+                    {timeSince(announcement._creationTime)}
+                  </div>
                 </div>
               </div>
               
@@ -229,13 +273,59 @@ export default function AnnouncementsPage() {
               </div>
 
               {isCreator && (
-                <button
-                  onClick={() => setDeleteId(announcement._id)}
-                  className="mt-4 sm:absolute sm:mt-0 sm:bottom-6 sm:left-6 flex items-center justify-center rounded-xl bg-red-500/10 p-3 text-red-500 border border-red-500/10 opacity-60 hover:opacity-100 hover:bg-red-500 hover:text-white transition-all transform active:scale-95 cursor-pointer shadow-lg sm:opacity-0 sm:group-hover:opacity-100"
-                  title="حذف اطلاعیه"
-                >
-                  <FiTrash2 className="h-4 w-4" />
-                </button>
+                <div className="mt-4 sm:absolute sm:mt-0 sm:bottom-6 sm:left-6 flex items-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await togglePin({ announcementId: announcement._id });
+                        pushToast({
+                          type: "success",
+                          title: announcement.pinned ? "سنجاق برداشته شد" : "سنجاق شد",
+                          message: announcement.pinned ? "اطلاعیه از حالت سنجاق خارج شد." : "اطلاعیه به بالای لیست سنجاق شد.",
+                        });
+                      } catch (error) {
+                        console.error("Failed to toggle pin", error);
+                        pushToast({
+                          type: "error",
+                          title: "خطا",
+                          message: "مشکلی در تغییر وضعیت سنجاق پیش آمد.",
+                        });
+                      }
+                    }}
+                    className={`flex items-center justify-center rounded-xl p-3 border transition-all transform active:scale-95 cursor-pointer shadow-lg ${
+                      announcement.pinned
+                        ? "bg-orange-500/10 text-orange-400 border-orange-500/15"
+                        : "bg-white/5 text-white/40 border-white/5 hover:text-white"
+                    }`}
+                    title={announcement.pinned ? "برداشتن سنجاق" : "سنجاق کردن"}
+                  >
+                    {announcement.pinned ? (
+                      <BsPinAngleFill className="h-4 w-4" />
+                    ) : (
+                      <BsPinAngle className="h-4 w-4" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingAnnouncement(announcement);
+                      setTitle(announcement.title);
+                      setContent(announcement.content);
+                      setIsAdding(true);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="flex items-center justify-center rounded-xl bg-blue-500/10 p-3 text-blue-400 border border-blue-500/10 opacity-70 hover:opacity-100 hover:bg-blue-500 hover:text-white transition-all transform active:scale-95 cursor-pointer shadow-lg"
+                    title="ویرایش اطلاعیه"
+                  >
+                    <FiEdit2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteId(announcement._id)}
+                    className="flex items-center justify-center rounded-xl bg-red-500/10 p-3 text-red-500 border border-red-500/10 opacity-70 hover:opacity-100 hover:bg-red-500 hover:text-white transition-all transform active:scale-95 cursor-pointer shadow-lg"
+                    title="حذف اطلاعیه"
+                  >
+                    <FiTrash2 className="h-4 w-4" />
+                  </button>
+                </div>
               )}
             </motion.div>
           ))

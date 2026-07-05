@@ -15,6 +15,7 @@ import {
   FiMessageSquare,
   FiChevronLeft,
   FiSlash,
+  FiImage,
 } from "react-icons/fi";
 
 const iconMap: Record<string, any> = {
@@ -23,6 +24,7 @@ const iconMap: Record<string, any> = {
   tickets: FiMessageSquare,
   earnings: FiDollarSign,
   networks: FiUsers,
+  prompts: FiImage,
 };
 
 export default function SupportHelpPage() {
@@ -64,9 +66,9 @@ export default function SupportHelpPage() {
     return firstKey ? filteredTopics[firstKey] : null;
   }, [helpDocs, filteredTopics, activeTopic]);
 
-  // Helper to parse bold (**) and inline code (`)
+  // Helper to parse bold (**), inline code (`), and links ([text](url))
   const parseInlineElements = (text: string): React.ReactNode[] => {
-    const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+    const parts = text.split(/(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))/g);
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
         return (
@@ -83,6 +85,19 @@ export default function SupportHelpPage() {
           >
             {part.slice(1, -1)}
           </code>
+        );
+      }
+      const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+      if (linkMatch) {
+        return (
+          <a
+            key={index}
+            href={linkMatch[2]}
+            download
+            className="inline-flex items-center gap-1 text-orange-400 hover:text-orange-300 font-bold underline transition-colors"
+          >
+            {linkMatch[1]}
+          </a>
         );
       }
       return part;

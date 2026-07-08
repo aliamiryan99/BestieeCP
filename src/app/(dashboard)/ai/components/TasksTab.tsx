@@ -13,6 +13,8 @@ import {
   FiChevronDown,
   FiChevronUp,
   FiRefreshCw,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 
 const statusConfig = {
@@ -34,7 +36,9 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export default function TasksTab() {
-  const tasks = useQuery(api.ai.ai.listAllTasks);
+  const [currentPage, setCurrentPage] = useState(1);
+  const limit = 15;
+  const tasksResponse = useQuery(api.ai.ai.listAllTasks, { page: currentPage, limit });
   const retryTask = useMutation(api.ai.ai.retryTask);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState<Record<string, boolean>>({});
@@ -50,13 +54,15 @@ export default function TasksTab() {
     }
   };
 
-  if (tasks === undefined) {
+  if (tasksResponse === undefined) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
       </div>
     );
   }
+
+  const { data: tasks, totalPages, totalItems } = tasksResponse;
 
   if (tasks.length === 0) {
     return (
@@ -270,6 +276,56 @@ export default function TasksTab() {
           </div>
         );
       })}
+
+      {/* ── Pagination Controls ── */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-8 border-t border-white/5">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 border border-white/10 text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <FiChevronRight className="text-lg" />
+          </button>
+          
+          <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-2xl bg-slate-900/40 border border-white/5 shadow-inner">
+            {Array.from({ length: totalPages }).map((_, idx) => {
+              const pageNum = idx + 1;
+              // Show limited pages if many
+              if (totalPages > 7) {
+                if (
+                  pageNum !== 1 && 
+                  pageNum !== totalPages && 
+                  (pageNum < currentPage - 1 || pageNum > currentPage + 1)
+                ) {
+                  if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                    return <span key={pageNum} className="text-white/20 pb-1">.</span>;
+                  }
+                  return null;
+                }
+              }
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`min-w-[36px] h-8 rounded-lg text-xs font-black transition-all ${currentPage === pageNum ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/40' : 'text-white/40 hover:bg-white/5 hover:text-white/60'}`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 border border-white/10 text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <FiChevronLeft className="text-lg" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

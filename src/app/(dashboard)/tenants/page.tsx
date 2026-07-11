@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import QRCode from "qrcode";
 import {
   FiSearch,
   FiX,
@@ -25,6 +26,7 @@ import {
   FiRefreshCw,
   FiAward,
 } from "react-icons/fi";
+import { BsQrCode } from "react-icons/bs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
 import { useToastStore } from "@/store/toastStore";
@@ -280,6 +282,88 @@ function TenantCard({
       : `${remainingDays} روز تا رکود`
     : "راکد شده";
 
+  const handleDownloadQRCode = async () => {
+    if (!hostname || hostname === "—") {
+      alert("این شعبه دامنه ثبت شده‌ای ندارد.");
+      return;
+    }
+
+    const url = `https://${hostname}`;
+
+    try {
+      const canvas = document.createElement("canvas");
+      await QRCode.toCanvas(canvas, url, {
+        errorCorrectionLevel: "H",
+        width: 512,
+        margin: 2,
+        color: {
+          dark: "#000000",
+          light: "#ffffff",
+        },
+      });
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const logo = new Image();
+      logo.src = "/BestieeMiniLogo.webp";
+      logo.crossOrigin = "anonymous";
+
+      logo.onload = () => {
+        const qrSize = canvas.width;
+        const logoSize = Math.floor(qrSize * 0.22);
+        const x = (qrSize - logoSize) / 2;
+        const y = (qrSize - logoSize) / 2;
+
+        const padding = 8;
+        const bgSize = logoSize + padding * 2;
+        const bgX = x - padding;
+        const bgY = y - padding;
+
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") {
+          ctx.roundRect(bgX, bgY, bgSize, bgSize, 16);
+        } else {
+          ctx.rect(bgX, bgY, bgSize, bgSize);
+        }
+        ctx.fill();
+
+        // Recolor the logo to solid black using source-in composition
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = logoSize;
+        tempCanvas.height = logoSize;
+        const tempCtx = tempCanvas.getContext("2d");
+        if (tempCtx) {
+          tempCtx.drawImage(logo, 0, 0, logoSize, logoSize);
+          tempCtx.globalCompositeOperation = "source-in";
+          tempCtx.fillStyle = "#000000";
+          tempCtx.fillRect(0, 0, logoSize, logoSize);
+          ctx.drawImage(tempCanvas, x, y);
+        } else {
+          ctx.drawImage(logo, x, y, logoSize, logoSize);
+        }
+
+        const dataUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.download = `qr-${tenant.name}.png`;
+        link.href = dataUrl;
+        link.click();
+      };
+
+      logo.onerror = () => {
+        const dataUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.download = `qr-${tenant.name}.png`;
+        link.href = dataUrl;
+        link.click();
+      };
+    } catch (err) {
+      console.error("Error generating QR code:", err);
+      alert("خطا در تولید کد QR");
+    }
+  };
+
   return (
     <div className="group flex flex-col gap-4 rounded-3xl border border-white/5 bg-white/4 p-5 transition-all duration-300 hover:bg-white/7 hover:border-white/10 hover:shadow-xl">
       {/* Top row: title + type + plan */}
@@ -417,6 +501,13 @@ function TenantCard({
               هدیه طرح
             </button>
           )}
+          <button
+            onClick={handleDownloadQRCode}
+            className="cursor-pointer flex items-center gap-1 rounded-xl border border-teal-800/40 bg-teal-900/10 px-2.5 py-1 text-[11px] text-teal-300 transition hover:bg-teal-900/30"
+          >
+            <BsQrCode className="text-[10px]" />
+            کد QR
+          </button>
           <button
             onClick={() => router.push(`/tenants/${tenant._id}/edit`)}
             className="cursor-pointer flex items-center gap-1 rounded-xl border border-indigo-800/40 bg-indigo-900/10 px-2.5 py-1 text-[11px] text-indigo-300 transition hover:bg-indigo-900/30"

@@ -37,6 +37,7 @@ import {
   FiUsers,
   FiSearch,
   FiList,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 const LocationPicker = dynamic(() => import("@/components/profile/LocationPicker"), { ssr: false });
@@ -1679,6 +1680,14 @@ function ImageUploadCard({
 }
 
 
+const formatNumber = (val: number | string | undefined) => {
+  if (val === undefined || val === null || isNaN(Number(val))) return "";
+  const parts = String(val).split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+};
+
+
 function EditServiceSelectionCard({
   service,
   tenantServices,
@@ -1690,6 +1699,9 @@ function EditServiceSelectionCard({
 }) {
   const modelsQuery = useQuery(api.services.adminServices.listModels, service.hasModels ? { serviceId: service._id } : "skip");
   const [expanded, setExpanded] = useState(false);
+
+  const [bulkPrice, setBulkPrice] = useState<number>(0);
+  const [bulkDuration, setBulkDuration] = useState<number>(30);
 
   const isServiceSelected = tenantServices.some(ts => ts.serviceId === service._id && !ts.modelId);
   const selectedModelsCount = tenantServices.filter(ts => ts.serviceId === service._id && ts.modelId).length;
@@ -1715,6 +1727,15 @@ function EditServiceSelectionCard({
     setTenantServices(prev => prev.map(ts => {
       if (ts.serviceId === service._id && ts.modelId === modelId) {
         return { ...ts, [field]: value };
+      }
+      return ts;
+    }));
+  };
+
+  const handleSyncModels = () => {
+    setTenantServices(prev => prev.map(ts => {
+      if (ts.serviceId === service._id && ts.modelId) {
+        return { ...ts, price: bulkPrice, duration: bulkDuration };
       }
       return ts;
     }));
@@ -1797,9 +1818,15 @@ function EditServiceSelectionCard({
           <div>
             <label className="text-[11px] font-bold text-indigo-300/70 mb-1.5 block">قیمت (تومان)</label>
             <input
-              type="number"
-              value={tenantServices.find(ts => ts.serviceId === service._id && !ts.modelId)?.price || 0}
-              onChange={(e) => updatePriceDuration(undefined, "price", Number(e.target.value))}
+              type="text"
+              placeholder="0"
+              value={tenantServices.find(ts => ts.serviceId === service._id && !ts.modelId)?.price === 0 ? "" : formatNumber(tenantServices.find(ts => ts.serviceId === service._id && !ts.modelId)?.price)}
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/,/g, '');
+                if (rawValue === "" || /^\d+$/.test(rawValue)) {
+                  updatePriceDuration(undefined, "price", rawValue === "" ? 0 : Number(rawValue));
+                }
+              }}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-white/8 transition"
             />
           </div>
@@ -1818,6 +1845,46 @@ function EditServiceSelectionCard({
       {/* ── Models card grid ─────────────────────────────────────────── */}
       {service.hasModels && expanded && (
         <div className="p-5 border-t border-white/10 bg-gradient-to-b from-black/30 to-black/10">
+          {/* Bulk set price and duration */}
+          {groupedModels && Object.keys(groupedModels).length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-4 items-end bg-white/5 border border-white/10 rounded-2xl p-4 mb-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex-1 w-full">
+                <label className="text-[11px] font-bold text-indigo-300/80 mb-1.5 block">قیمت همگانی مدل‌ها (تومان)</label>
+                <input
+                  type="text"
+                  placeholder="0"
+                  value={bulkPrice === 0 ? "" : formatNumber(bulkPrice)}
+                  onChange={(e) => {
+                    const rawValue = e.target.value.replace(/,/g, '');
+                    if (rawValue === "" || /^\d+$/.test(rawValue)) {
+                      setBulkPrice(rawValue === "" ? 0 : Number(rawValue));
+                    }
+                  }}
+                  className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-white/5 transition"
+                />
+              </div>
+              <div className="flex-1 w-full">
+                <label className="text-[11px] font-bold text-indigo-300/80 mb-1.5 block">مدت همگانی مدل‌ها (دقیقه)</label>
+                <input
+                  type="number"
+                  placeholder="30"
+                  value={bulkDuration || ""}
+                  onChange={(e) => setBulkDuration(e.target.value === "" ? 0 : Number(e.target.value))}
+                  className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-white/5 transition"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleSyncModels}
+                disabled={selectedModelsCount === 0}
+                className="w-full sm:w-auto cursor-pointer flex items-center justify-center gap-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 shrink-0 h-[38px]"
+              >
+                <FiRefreshCw className="text-xs" />
+                <span>همگام‌سازی ({selectedModelsCount} مدل)</span>
+              </button>
+            </div>
+          )}
+
           {!groupedModels ? (
             <div className="flex items-center justify-center gap-3 py-10">
               <FiLoader className="animate-spin text-2xl text-indigo-400" />
@@ -1903,9 +1970,15 @@ function EditServiceSelectionCard({
                                 <div>
                                   <label className="text-[9px] font-bold text-indigo-300/60 mb-1 block">قیمت (ت)</label>
                                   <input
-                                    type="number"
-                                    value={tsRecord?.price || 0}
-                                    onChange={(e) => updatePriceDuration(model._id, "price", Number(e.target.value))}
+                                    type="text"
+                                    placeholder="0"
+                                    value={tsRecord?.price === 0 ? "" : formatNumber(tsRecord?.price)}
+                                    onChange={(e) => {
+                                      const rawValue = e.target.value.replace(/,/g, '');
+                                      if (rawValue === "" || /^\d+$/.test(rawValue)) {
+                                        updatePriceDuration(model._id, "price", rawValue === "" ? 0 : Number(rawValue));
+                                      }
+                                    }}
                                     className="w-full bg-black/20 border border-indigo-500/20 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:border-indigo-400/60 text-center"
                                   />
                                 </div>

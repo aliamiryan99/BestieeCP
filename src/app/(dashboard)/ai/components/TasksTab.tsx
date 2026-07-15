@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
+import type { Id } from "@backend/dataModel";
 import {
   FiClock,
   FiCheck,
@@ -24,6 +25,138 @@ const statusConfig = {
   failed: { icon: FiAlertTriangle, color: "text-rose-400", bg: "bg-rose-400/10", border: "border-rose-400/20", label: "خطا" },
 };
 
+interface TaskSelectionMeta {
+  service: { id: string; name: string; nameEn?: string };
+  group?: { id: string; name: string; nameEn?: string };
+  model: { id: string; name: string; nameEn?: string; directive: string };
+}
+
+interface TaskPromptMetaV2 {
+  schemaVersion: 2;
+  type: "barbers" | "barbies";
+  promptVersion: string;
+  services: TaskSelectionMeta["service"][];
+  selections: TaskSelectionMeta[];
+  environment: { id: string; label: string; directive: string };
+  figurePosition: "standing" | "sitting";
+  composition: "2x2-multi-view-grid";
+  aspectRatio: string;
+  resolution: string;
+}
+
+interface AdminAiTask {
+  _id: Id<"ai_tasks">;
+  status: keyof typeof statusConfig;
+  createdAt: number;
+  provider: string;
+  type?: "barbers" | "barbies";
+  model?: string;
+  promptVersion?: string;
+  resolvedPromptMeta?: string;
+  title?: string;
+  userName: string;
+  userPhone: string;
+  prompt: string;
+  aspectRatio: string;
+  resolution?: string;
+  serviceType: string;
+  environmentId: string;
+  cameraPosition?: string;
+  figurePosition?: string;
+  referenceImageUrls?: string[];
+  resultUrls?: string[];
+  imageInputs: string[];
+  errorMessage?: string;
+}
+
+function parsePromptMeta(raw: unknown): TaskPromptMetaV2 | null {
+  if (!raw) return null;
+
+  try {
+    const value = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!value || typeof value !== "object") return null;
+
+    const candidate = value as Partial<TaskPromptMetaV2>;
+    if (
+      candidate.schemaVersion !== 2 ||
+      (candidate.type !== "barbers" && candidate.type !== "barbies") ||
+      typeof candidate.promptVersion !== "string" ||
+      !Array.isArray(candidate.services) ||
+      !Array.isArray(candidate.selections) ||
+      !candidate.environment ||
+      typeof candidate.environment.id !== "string" ||
+      typeof candidate.environment.label !== "string" ||
+      typeof candidate.environment.directive !== "string" ||
+      (candidate.figurePosition !== "standing" && candidate.figurePosition !== "sitting") ||
+      candidate.composition !== "2x2-multi-view-grid" ||
+      typeof candidate.aspectRatio !== "string" ||
+      typeof candidate.resolution !== "string"
+    ) {
+      return null;
+    }
+
+    if (
+      !candidate.services.every(
+        (service) =>
+          service &&
+          typeof service.id === "string" &&
+          typeof service.name === "string",
+      )
+    ) {
+      return null;
+    }
+
+    const selections = candidate.selections.filter((selection) =>
+      Boolean(
+        selection &&
+          selection.service &&
+          typeof selection.service.id === "string" &&
+          typeof selection.service.name === "string" &&
+          selection.model &&
+          typeof selection.model.id === "string" &&
+          typeof selection.model.name === "string" &&
+          typeof selection.model.directive === "string",
+      ),
+    );
+
+    return { ...candidate, selections } as TaskPromptMetaV2;
+  } catch {
+    return null;
+  }
+}
+
+function groupSelectionsByService(
+  services: TaskSelectionMeta["service"][],
+  selections: TaskSelectionMeta[],
+) {
+  const groups = new Map<
+    string,
+    { service: TaskSelectionMeta["service"]; selections: TaskSelectionMeta[] }
+  >();
+
+  for (const service of services) {
+    groups.set(service.id, { service, selections: [] });
+  }
+
+  for (const selection of selections) {
+    const existing = groups.get(selection.service.id);
+    if (existing) {
+      existing.selections.push(selection);
+    } else {
+      groups.set(selection.service.id, {
+        service: selection.service,
+        selections: [selection],
+      });
+    }
+  }
+
+  return Array.from(groups.values());
+}
+
+function taskTypeLabel(type: unknown) {
+  return type === "barbies" ? "زیبایی بانوان" : "آرایشگری مردانه";
+}
+
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
   const mins = Math.floor(diff / 60000);
@@ -43,7 +176,7 @@ export default function TasksTab() {
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState<Record<string, boolean>>({});
 
-  const handleRetry = async (taskId: any) => {
+  const handleRetry = async (taskId: Id<"ai_tasks">) => {
     try {
       setIsRetrying((prev) => ({ ...prev, [taskId]: true }));
       await retryTask({ taskId });
@@ -62,7 +195,7 @@ export default function TasksTab() {
     );
   }
 
-  const { data: tasks, totalPages, totalItems } = tasksResponse;
+  const { data: tasks, totalPages } = tasksResponse;
 
   if (tasks.length === 0) {
     return (
@@ -77,10 +210,14 @@ export default function TasksTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      {tasks.map((task: any) => {
+      {tasks.map((task: AdminAiTask) => {
         const isExpanded = expandedTask === task._id;
         const cfg = statusConfig[task.status as keyof typeof statusConfig];
         const StatusIcon = cfg.icon;
+        const promptMeta = parsePromptMeta(task.resolvedPromptMeta);
+        const groupedSelections = promptMeta
+          ? groupSelectionsByService(promptMeta.services, promptMeta.selections)
+          : [];
 
         return (
           <div
@@ -126,6 +263,19 @@ export default function TasksTab() {
                       <FiServer className="opacity-70" />
                       {task.provider}
                     </span>
+                    <span className="rounded-md bg-sky-500/10 px-2 py-0.5 text-sky-300/80 border border-sky-500/20 whitespace-nowrap">
+                      {taskTypeLabel(task.type)}
+                    </span>
+                    {task.model && (
+                      <span className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-indigo-300/80 border border-indigo-500/20 whitespace-nowrap" dir="ltr">
+                        {task.model}
+                      </span>
+                    )}
+                    {(promptMeta?.promptVersion || task.promptVersion) && (
+                      <span className="rounded-md bg-violet-500/10 px-2 py-0.5 text-violet-300/80 border border-violet-500/20 whitespace-nowrap" dir="ltr">
+                        {promptMeta?.promptVersion || task.promptVersion}
+                      </span>
+                    )}
                     {task.title && (
                       <span className="flex items-center gap-1 text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 whitespace-normal break-words text-right">
                         {task.title}
@@ -137,6 +287,30 @@ export default function TasksTab() {
                         مرجع
                       </span>
                     )}
+                    {promptMeta?.selections.map((selection) => (
+                      <span
+                        key={`${selection.service.id}:${selection.group?.id ?? "general"}:${selection.model.id}`}
+                        className="rounded-md bg-amber-500/10 px-2 py-0.5 text-amber-300/90 border border-amber-500/20 whitespace-normal"
+                        title={`${selection.service.nameEn || selection.service.name}${selection.group ? ` / ${selection.group.nameEn || selection.group.name}` : ""}`}
+                      >
+                        {selection.service.name}: {selection.model.name}
+                      </span>
+                    ))}
+                    {promptMeta?.services
+                      .filter(
+                        (service) =>
+                          !promptMeta.selections.some(
+                            (selection) => selection.service.id === service.id,
+                          ),
+                      )
+                      .map((service) => (
+                        <span
+                          key={service.id}
+                          className="rounded-md bg-amber-500/10 px-2 py-0.5 text-amber-300/90 border border-amber-500/20 whitespace-normal"
+                        >
+                          {service.name}
+                        </span>
+                      ))}
                   </div>
                 </div>
               </div>
@@ -159,16 +333,88 @@ export default function TasksTab() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left Column: Details */}
                   <div className="flex flex-col gap-4">
+                    {promptMeta ? (
+                      <div className="flex flex-col gap-3">
+                        <span className="text-xs text-white/40 block">سرویس‌ها و مدل‌های انتخابی:</span>
+                        {groupedSelections.length > 0 ? (
+                          groupedSelections.map((group) => (
+                            <div
+                              key={group.service.id}
+                              className="rounded-xl border border-amber-500/15 bg-amber-500/5 p-3"
+                            >
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-bold text-amber-300">
+                                  {group.service.name}
+                                </span>
+                                {group.service.nameEn && (
+                                  <span className="text-[10px] text-white/35" dir="ltr">
+                                    {group.service.nameEn}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-2">
+                                {group.selections.length > 0 ? group.selections.map((selection) => (
+                                  <div
+                                    key={`${selection.group?.id ?? "general"}:${selection.model.id}`}
+                                    className="rounded-lg border border-white/5 bg-black/15 p-2.5"
+                                  >
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {selection.group && (
+                                        <span className="text-[10px] text-white/40">
+                                          {selection.group.name}
+                                        </span>
+                                      )}
+                                      <span className="text-xs font-bold text-white/85">
+                                        {selection.model.name}
+                                      </span>
+                                      {selection.model.nameEn && (
+                                        <span className="text-[10px] text-white/35" dir="ltr">
+                                          {selection.model.nameEn}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="mt-1.5 text-xs leading-relaxed text-white/55 text-left" dir="ltr">
+                                      {selection.model.directive}
+                                    </p>
+                                  </div>
+                                )) : (
+                                  <span className="text-xs text-white/40">
+                                    مدل مشخصی برای این سرویس ثبت نشده است.
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="rounded-xl border border-white/5 bg-white/5 p-3 text-xs text-white/45">
+                            هیچ مدل تغییری برای این درخواست ثبت نشده است.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-amber-500/15 bg-amber-500/5 p-3">
+                        <span className="text-xs font-medium text-amber-300/80">
+                          فراداده ساختاریافته برای این درخواست قدیمی یا نامعتبر در دسترس نیست.
+                        </span>
+                        <p className="mt-1 text-xs text-white/45">
+                          {task.serviceType || task.title || "اطلاعات سرویس ثبت نشده است."}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <span className="text-xs text-white/40 mb-1 block">پرامپت:</span>
-                      <p className="text-sm text-white/80 leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5">
+                      <p className="text-sm text-white/80 leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5 text-left whitespace-pre-wrap" dir="ltr">
                         {task.prompt}
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                         <span className="text-xs text-white/40 block mb-1">نسبت تصویر</span>
-                        <span className="text-sm font-bold text-white">{task.aspectRatio}</span>
+                        <span className="text-sm font-bold text-white">{promptMeta?.aspectRatio || task.aspectRatio}</span>
+                      </div>
+                      <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                        <span className="text-xs text-white/40 block mb-1">وضوح</span>
+                        <span className="text-sm font-bold text-white">{promptMeta?.resolution || task.resolution || "—"}</span>
                       </div>
                     </div>
 
@@ -179,11 +425,11 @@ export default function TasksTab() {
                       </div>
                       <div className="bg-white/5 p-2 rounded-lg border border-white/5 text-center">
                         <span className="text-[10px] text-white/30 block">محیط</span>
-                        <span className="text-xs font-medium text-white/70">{task.environmentId}</span>
+                        <span className="text-xs font-medium text-white/70">{promptMeta?.environment.label || task.environmentId}</span>
                       </div>
                       <div className="bg-white/5 p-2 rounded-lg border border-white/5 text-center">
-                        <span className="text-[10px] text-white/30 block">دوربین</span>
-                        <span className="text-xs font-medium text-white/70">{task.cameraPosition}</span>
+                        <span className="text-[10px] text-white/30 block">حالت سوژه</span>
+                        <span className="text-xs font-medium text-white/70">{promptMeta?.figurePosition || task.figurePosition || task.cameraPosition}</span>
                       </div>
                     </div>
                     {(task.errorMessage || task.status === "failed") && (

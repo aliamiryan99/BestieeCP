@@ -476,12 +476,12 @@ function TenantCard({
 
       {/* Divider + Actions */}
       <div className="border-t border-white/5" />
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-white/20 flex items-center gap-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+        <span className="text-[10px] text-white/30 flex items-center gap-1 shrink-0">
           <FiClock className="text-[9px]" />
           {new Date(tenant._creationTime).toLocaleDateString("fa-IR")}
         </span>
-        <div className="mr-auto flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {canExtend && (
             <button
               onClick={() => onExtend(tenant)}

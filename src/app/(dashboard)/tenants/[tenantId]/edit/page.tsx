@@ -771,14 +771,14 @@ export default function EditTenantPage() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-5">
-                  <div className="col-span-2">
+                  <div className="col-span-1 lg:col-span-2">
                     <label className="mb-2 block text-xs font-bold text-white/50">
                       تصویر مجوز فعالیت
                       <span className="text-rose-400 text-sm mr-1">*</span>
                     </label>
                     <div
                       onClick={() => certInputRef.current?.click()}
-                      className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 transition-all h-[200px] ${certificatePreview
+                      className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 transition-all min-h-[200px] ${certificatePreview
                         ? "border-emerald-500/30 bg-emerald-500/5"
                         : errors.certificate
                           ? "border-rose-500/40 bg-rose-500/5"
@@ -786,11 +786,11 @@ export default function EditTenantPage() {
                         }`}
                     >
                       {certificatePreview ? (
-                        <div className="relative h-full flex items-center justify-center">
+                        <div className="relative flex flex-col items-center justify-center max-w-full">
                           <img
                             src={certificatePreview}
                             alt="Certificate preview"
-                            className="max-h-[150px] rounded-xl shadow-lg"
+                            className="max-h-[150px] max-w-full object-contain rounded-xl shadow-lg"
                           />
                           <button
                             onClick={(e) => {
@@ -1612,10 +1612,10 @@ function ImageUploadCard({
   error?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col justify-between">
       <div className="mb-4">
         <h3 className="text-sm font-bold text-white">{title}</h3>
-        <p className="mt-1 text-[11px] text-white/35">{description}</p>
+        <p className="mt-1 text-[11px] text-white/35 leading-relaxed">{description}</p>
       </div>
 
       <div
@@ -1628,11 +1628,11 @@ function ImageUploadCard({
           }`}
       >
         {preview ? (
-          <div className="relative">
+          <div className="relative flex flex-col items-center justify-center max-w-full">
             <img
               src={preview}
               alt={title}
-              className="max-h-44 rounded-xl border border-white/10 shadow-lg"
+              className="max-h-44 max-w-full object-contain rounded-xl border border-white/10 shadow-lg"
             />
             <button
               onClick={(e) => {

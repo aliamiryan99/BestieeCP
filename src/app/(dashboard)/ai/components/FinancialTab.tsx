@@ -101,7 +101,7 @@ export default function FinancialTab({
           <div>
             <h3 className="text-lg font-bold text-white">نرخ‌گذاری و سود</h3>
             <p className="text-sm text-white/40">
-              تنظیمات پایه قیمت‌گذاری برای سیستم هوش مصنوعی (GPT-Image-2)
+              تنظیمات پایه قیمت‌گذاری برای سیستم هوش مصنوعی (GPT-Image-2.5 Sunburst)
             </p>
           </div>
         </div>
@@ -110,7 +110,7 @@ export default function FinancialTab({
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-3">
               <label className="text-sm font-bold text-white/70 block">
-                هزینه مدل GPT-Image-2 (اعتبار بر اساس رزولوشن)
+                هزینه مدل GPT-Image-2.5 Sunburst (اعتبار بر اساس رزولوشن)
               </label>
               <div className="grid grid-cols-3 gap-4">
                 {/* 1K */}
@@ -148,7 +148,7 @@ export default function FinancialTab({
                 </div>
               </div>
               <p className="text-xs text-white/40">
-                هزینه تولید هر تصویر توسط مدل جدید GPT-Image-2 بر اساس رزولوشن انتخاب شده.
+                هزینه تولید هر تصویر توسط مدل جدید GPT-Image-2.5 Sunburst بر اساس رزولوشن انتخاب شده.
               </p>
             </div>
           </div>

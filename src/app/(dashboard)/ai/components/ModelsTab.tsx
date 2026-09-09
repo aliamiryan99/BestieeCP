@@ -57,7 +57,7 @@ export default function ModelsTab({ settings }: { settings: any }) {
           <FiCpu className="text-xl" />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-white">پارامترهای پایه جی‌پی‌تی (GPT-Image-2)</h3>
+          <h3 className="text-lg font-bold text-white">پارامترهای پایه جی‌پی‌تی (GPT-Image-2.5 Sunburst)</h3>
           <p className="text-sm text-white/40">تنظیمات پیش‌فرض برای اجرای مدل اصلی تصویرساز</p>
         </div>
       </div>

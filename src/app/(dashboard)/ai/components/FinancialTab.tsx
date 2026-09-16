@@ -20,6 +20,9 @@ type FinancialSettings = {
     res4K: number;
   };
   creditPriceToman?: number;
+  welcomeCredits?: number;
+  referralBonusCredits?: number;
+  referralMaxPerUser?: number;
 } | null;
 
 export default function FinancialTab({
@@ -31,6 +34,9 @@ export default function FinancialTab({
   const [dollarPrice, setDollarPrice] = useState<number>(160000);
   const [creditPriceCents, setCreditPriceCents] = useState<number>(1);
   const [creditPriceToman, setCreditPriceToman] = useState<number>(1600);
+  const [welcomeCredits, setWelcomeCredits] = useState<number>(10);
+  const [referralBonusCredits, setReferralBonusCredits] = useState<number>(20);
+  const [referralMaxPerUser, setReferralMaxPerUser] = useState<number>(0);
   const [gptCosts, setGptCosts] = useState({
     res1K: 2,
     res2K: 3,
@@ -47,6 +53,9 @@ export default function FinancialTab({
       setDollarPrice(settings.dollarPriceToman ?? 160000);
       setCreditPriceCents(settings.creditPriceCents ?? 1);
       setCreditPriceToman(settings.creditPriceToman ?? 1600);
+      setWelcomeCredits(settings.welcomeCredits ?? 10);
+      setReferralBonusCredits(settings.referralBonusCredits ?? 20);
+      setReferralMaxPerUser(settings.referralMaxPerUser ?? 0);
       if (settings.gptImageCostsCredits) {
         setGptCosts({
           res1K: settings.gptImageCostsCredits.res1K ?? 2,
@@ -66,6 +75,9 @@ export default function FinancialTab({
         creditPriceCents,
         creditPriceToman,
         gptImageCostsCredits: gptCosts,
+        welcomeCredits,
+        referralBonusCredits,
+        referralMaxPerUser,
       });
       pushToast({
         type: "success",
@@ -239,6 +251,75 @@ export default function FinancialTab({
             <p className="text-xs text-white/40">
               ضریب ۱ یعنی فروش به قیمت تمام شده. ضریب ۲ یعنی دو برابر.
             </p>
+          </div>
+
+          {/* Referral & Welcome Bonus Settings */}
+          <div className="border-t border-white/5 pt-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-white">تنظیمات هدیه ثبت‌نام و معرف (Referral System)</span>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-white/70 block">
+                  اعتبار ثبت‌نام عادی (بدون معرف)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={welcomeCredits}
+                    onChange={(e) => setWelcomeCredits(Number(e.target.value))}
+                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                    dir="ltr"
+                    min="0"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-xs font-bold">
+                    اعتبار
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/40">هدیه پیش‌فرض ۱۰ اعتبار به کاربر جدید</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-white/70 block">
+                  اعتبار هدیه معرف و دوست (با کد معرف)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={referralBonusCredits}
+                    onChange={(e) => setReferralBonusCredits(Number(e.target.value))}
+                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                    dir="ltr"
+                    min="0"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-xs font-bold">
+                    اعتبار
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/40">۲۰ اعتبار به دوست جدید و +۲۰ به صاحب کد</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-white/70 block">
+                  سقف معرف برای هر کاربر (۰ = نامحدود)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={referralMaxPerUser}
+                    onChange={(e) => setReferralMaxPerUser(Number(e.target.value))}
+                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                    dir="ltr"
+                    min="0"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-xs font-bold">
+                    دعوت
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/40">حداکثر دفعاتی که معرف پاداش می‌گیرد</p>
+              </div>
+            </div>
           </div>
         </div>
 

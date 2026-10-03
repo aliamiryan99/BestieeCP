@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { FiNavigation, FiSearch, FiLoader } from "react-icons/fi";
+import { FiNavigation, FiSearch, FiLoader, FiAlertCircle } from "react-icons/fi";
 
 // Fix Leaflet's default icon path issue in Next.js
 const customIcon = new L.Icon({
@@ -47,9 +47,15 @@ function FlyToLocation({ position }: { position: [number, number] | null }) {
 export default function LocationPicker({
   value,
   onChange,
+  addressSlot,
+  error,
+  mapHeight = "380px",
 }: {
   value: { lat: number; lng: number } | null;
   onChange: (location: { lat: number; lng: number }) => void;
+  addressSlot?: React.ReactNode;
+  error?: string;
+  mapHeight?: string;
 }) {
   const [markerPos, setMarkerPos] = useState<[number, number] | null>(
     value ? [value.lat, value.lng] : null
@@ -58,6 +64,12 @@ export default function LocationPicker({
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
+
+  useEffect(() => {
+    if (value) {
+      setMarkerPos([value.lat, value.lng]);
+    }
+  }, [value?.lat, value?.lng]);
 
   const handleMapClick = useCallback(
     (lat: number, lng: number) => {
@@ -113,54 +125,122 @@ export default function LocationPicker({
   const center: [number, number] = markerPos || DEFAULT_CENTER;
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Search bar + geolocate */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder="جستجوی آدرس یا مکان..."
-            className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pr-4 pl-12 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-amber-500/40 focus:bg-white/8"
-          />
+    <div className="flex flex-col gap-3 w-full">
+      {/* Top controls: Search input & Address field side-by-side */}
+      {addressSlot ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-end">
+          {/* Right column in RTL: Map Search & Locate */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-white/50 flex items-center gap-1.5">
+              <FiSearch className="text-amber-400" />
+              جستجو روی نقشه
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSearch();
+                    }
+                  }}
+                  placeholder="جستجوی آدرس، محله یا مکان..."
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 h-[46px] pr-4 pl-12 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-amber-500/40 focus:bg-white/8"
+                />
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  disabled={searching}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-white/60 transition hover:bg-white/20 hover:text-white cursor-pointer"
+                >
+                  {searching ? (
+                    <FiLoader className="animate-spin text-sm" />
+                  ) : (
+                    <FiSearch className="text-sm" />
+                  )}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGeolocate}
+                disabled={locating}
+                className="flex h-[46px] items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-bold text-white/70 transition hover:bg-white/10 hover:text-white cursor-pointer shrink-0"
+                title="موقعیت فعلی من"
+              >
+                {locating ? (
+                  <FiLoader className="animate-spin text-amber-400" />
+                ) : (
+                  <FiNavigation className="text-amber-400" />
+                )}
+                <span className="hidden sm:inline">موقعیت من</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Left column in RTL: Address Field Slot */}
+          <div>
+            {addressSlot}
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSearch();
+                }
+              }}
+              placeholder="جستجوی آدرس یا مکان..."
+              className="w-full rounded-2xl border border-white/10 bg-white/5 h-[46px] pr-4 pl-12 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-amber-500/40 focus:bg-white/8"
+            />
+            <button
+              type="button"
+              onClick={handleSearch}
+              disabled={searching}
+              className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-white/60 transition hover:bg-white/20 hover:text-white cursor-pointer"
+            >
+              {searching ? (
+                <FiLoader className="animate-spin text-sm" />
+              ) : (
+                <FiSearch className="text-sm" />
+              )}
+            </button>
+          </div>
+
           <button
-            onClick={handleSearch}
-            disabled={searching}
-            className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-white/60 transition hover:bg-white/20 hover:text-white cursor-pointer"
+            type="button"
+            onClick={handleGeolocate}
+            disabled={locating}
+            className="flex h-[46px] items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white cursor-pointer shrink-0"
+            title="موقعیت فعلی من"
           >
-            {searching ? (
-              <FiLoader className="animate-spin text-sm" />
+            {locating ? (
+              <FiLoader className="animate-spin" />
             ) : (
-              <FiSearch className="text-sm" />
+              <FiNavigation />
             )}
+            <span className="hidden sm:inline">موقعیت من</span>
           </button>
         </div>
+      )}
 
-        <button
-          onClick={handleGeolocate}
-          disabled={locating}
-          className="flex h-[46px] items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white cursor-pointer"
-          title="موقعیت فعلی من"
-        >
-          {locating ? (
-            <FiLoader className="animate-spin" />
-          ) : (
-            <FiNavigation />
-          )}
-          <span className="hidden sm:inline">موقعیت من</span>
-        </button>
-      </div>
-
-      {/* Map */}
-      <div className="overflow-hidden rounded-2xl border border-white/10 shadow-xl">
+      {/* Map full width & centered */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 shadow-xl w-full">
         <MapContainer
           center={center}
           zoom={markerPos ? 16 : DEFAULT_ZOOM}
           scrollWheelZoom={true}
-          style={{ height: "350px", width: "100%" }}
-          className="z-0"
+          style={{ height: mapHeight, width: "100%" }}
+          className="z-0 w-full"
           attributionControl={false}
         >
           <TileLayer
@@ -175,6 +255,13 @@ export default function LocationPicker({
       <p className="text-xs text-white/30 text-center">
         روی نقشه کلیک کنید تا موقعیت مکانی انتخاب شود
       </p>
+
+      {error && (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+          <FiAlertCircle className="shrink-0" />
+          {error}
+        </div>
+      )}
     </div>
   );
 }

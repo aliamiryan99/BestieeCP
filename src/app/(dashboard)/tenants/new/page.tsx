@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@backend/api";
+import type { Id } from "@backend/dataModel";
 import { useToastStore } from "@/store/toastStore";
 import { sanitizeError } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import CitySelect from "@/components/common/CitySelect";
+import AiImageGenerationModal from "@/components/tenants/AiImageGenerationModal";
 import {
   FiScissors,
   FiLink,
@@ -38,6 +41,8 @@ import {
   FiSearch,
   FiList,
   FiRefreshCw,
+  FiZap,
+  FiDownload,
 } from "react-icons/fi";
 
 const LocationPicker = dynamic(() => import("@/components/profile/LocationPicker"), { ssr: false });
@@ -45,11 +50,11 @@ const MAIN_DOMAIN = "bestiee.ir";
 
 // ─── Step indicator config ────────────────────────────────────────────────────
 const STEPS = [
-  { key: "basic", label: "اطلاعات اصلی", icon: <FiHash /> },
-  { key: "content", label: "محتوای سایت و شعبه", icon: <FiLayout /> },
+  { key: "basic", label: "اطلاعات اصلی و آدرس", icon: <FiHash /> },
   { key: "settings", label: "تنظیمات و شبکه‌ها", icon: <FiSettings /> },
   { key: "members", label: "مدیران و پرسنل", icon: <FiUsers /> },
   { key: "services", label: "خدمات و مدل‌ها", icon: <FiList /> },
+  { key: "content", label: "محتوای سایت و شعبه", icon: <FiLayout /> },
 ] as const;
 
 
@@ -85,9 +90,42 @@ type SiteImageField = "certificate" | "interior" | "outside" | "team" | "interio
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function NewTenantPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const pushToast = useToastStore((state) => state.push);
   const createTenant = useMutation(api.tenants.tenants.create);
   const generateUploadUrl = useMutation(api.uploads.upload.generateUploadUrl);
+  const generateAiContent = useAction(api.ai.tenantContent.generateTenantContent);
+  const startTenantImageTask = useMutation(api.ai.tenantImages.startTenantImageTask);
+  const cities = useQuery(api.cities.listActive);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleDownloadImage = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (err) {
+      console.error("Direct download failed, opening in new tab:", err);
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
 
   // Step control
   const [currentStep, setCurrentStep] = useState(0);
@@ -123,6 +161,112 @@ export default function NewTenantPage() {
   const [heroSubTitle, setHeroSubTitle] = useState("");
   const [aboutUsText, setAboutUsText] = useState("");
 
+  const selectedCityName = useMemo(() => {
+    if (!cities || !cityId) return "";
+    const found = cities.find((c: any) => c._id === cityId);
+    return found?.name || "";
+  }, [cities, cityId]);
+
+  const [generatingField, setGeneratingField] = useState<"all" | "heroTitle" | "heroSubTitle" | "aboutUsText" | null>(null);
+  const [overwriteConfirm, setOverwriteConfirm] = useState<"all" | "heroTitle" | "heroSubTitle" | "aboutUsText" | null>(null);
+
+  const executeAiGeneration = async (target: "all" | "heroTitle" | "heroSubTitle" | "aboutUsText") => {
+    setGeneratingField(target);
+    try {
+      const res = await generateAiContent({
+        name: name.trim(),
+        type,
+        city: selectedCityName,
+        address: address.trim(),
+        targetField: target,
+      });
+
+      if (target === "all") {
+        if (res.heroTitle) setHeroTitle(res.heroTitle);
+        if (res.heroSubTitle) setHeroSubTitle(res.heroSubTitle);
+        if (res.aboutUsText) setAboutUsText(res.aboutUsText);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "متن‌های هیرو و درباره ما با موفقیت تولید شدند.",
+        });
+      } else if (target === "heroTitle" && res.heroTitle) {
+        setHeroTitle(res.heroTitle);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "عنوان هیرو با موفقیت بازتولید شد.",
+        });
+      } else if (target === "heroSubTitle" && res.heroSubTitle) {
+        setHeroSubTitle(res.heroSubTitle);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "زیرعنوان هیرو با موفقیت بازتولید شد.",
+        });
+      } else if (target === "aboutUsText" && res.aboutUsText) {
+        setAboutUsText(res.aboutUsText);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "متن درباره ما با موفقیت بازتولید شد.",
+        });
+      }
+    } catch (err: any) {
+      pushToast({
+        type: "error",
+        title: "خطا در هوش مصنوعی",
+        message: sanitizeError(err),
+      });
+    } finally {
+      setGeneratingField(null);
+    }
+  };
+
+  const handleAiClick = (target: "all" | "heroTitle" | "heroSubTitle" | "aboutUsText") => {
+    if (!name.trim()) {
+      pushToast({
+        type: "error",
+        title: "اطلاعات ناقص",
+        message: "لطفاً ابتدا نام شعبه را در مرحله اول وارد کنید.",
+      });
+      return;
+    }
+    if (!selectedCityName) {
+      pushToast({
+        type: "error",
+        title: "اطلاعات ناقص",
+        message: "لطفاً ابتدا شهر شعبه را در مرحله اول انتخاب کنید.",
+      });
+      return;
+    }
+    if (!address.trim()) {
+      pushToast({
+        type: "error",
+        title: "اطلاعات ناقص",
+        message: "لطفاً ابتدا آدرس کامل شعبه را وارد یا از روی نقشه دریافت کنید.",
+      });
+      return;
+    }
+
+    let hasExistingContent = false;
+    if (target === "all") {
+      hasExistingContent = Boolean(heroTitle.trim() || heroSubTitle.trim() || aboutUsText.trim());
+    } else if (target === "heroTitle") {
+      hasExistingContent = Boolean(heroTitle.trim());
+    } else if (target === "heroSubTitle") {
+      hasExistingContent = Boolean(heroSubTitle.trim());
+    } else if (target === "aboutUsText") {
+      hasExistingContent = Boolean(aboutUsText.trim());
+    }
+
+    if (hasExistingContent) {
+      setOverwriteConfirm(target);
+    } else {
+      executeAiGeneration(target);
+    }
+  };
+
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certificatePreview, setCertificatePreview] = useState<string | null>(null);
@@ -146,6 +290,279 @@ export default function NewTenantPage() {
   const [teamMobileFile, setTeamMobileFile] = useState<File | null>(null);
   const [teamMobilePreview, setTeamMobilePreview] = useState<string | null>(null);
   const teamMobileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── AI Image Generation States & Tasks ─────────────────────────────
+  const [teamStorageId, setTeamStorageId] = useState<string | null>(null);
+  const [teamMobileStorageId, setTeamMobileStorageId] = useState<string | null>(null);
+  const [interiorStorageId, setInteriorStorageId] = useState<string | null>(null);
+  const [interiorMobileStorageId, setInteriorMobileStorageId] = useState<string | null>(null);
+  const [outsideStorageId, setOutsideStorageId] = useState<string | null>(null);
+  const [outsideMobileStorageId, setOutsideMobileStorageId] = useState<string | null>(null);
+
+  const [teamTaskId, setTeamTaskId] = useState<Id<"ai_tasks"> | null>(null);
+  const [interiorTaskId, setInteriorTaskId] = useState<Id<"ai_tasks"> | null>(null);
+  const [outsideTaskId, setOutsideTaskId] = useState<Id<"ai_tasks"> | null>(null);
+  const [teamMobileTaskId, setTeamMobileTaskId] = useState<Id<"ai_tasks"> | null>(null);
+  const [interiorMobileTaskId, setInteriorMobileTaskId] = useState<Id<"ai_tasks"> | null>(null);
+  const [outsideMobileTaskId, setOutsideMobileTaskId] = useState<Id<"ai_tasks"> | null>(null);
+
+  const teamTask = useQuery(api.ai.tenantImages.getTenantImageTask, teamTaskId ? { taskId: teamTaskId } : "skip");
+  const interiorTask = useQuery(api.ai.tenantImages.getTenantImageTask, interiorTaskId ? { taskId: interiorTaskId } : "skip");
+  const outsideTask = useQuery(api.ai.tenantImages.getTenantImageTask, outsideTaskId ? { taskId: outsideTaskId } : "skip");
+  const teamMobileTask = useQuery(api.ai.tenantImages.getTenantImageTask, teamMobileTaskId ? { taskId: teamMobileTaskId } : "skip");
+  const interiorMobileTask = useQuery(api.ai.tenantImages.getTenantImageTask, interiorMobileTaskId ? { taskId: interiorMobileTaskId } : "skip");
+  const outsideMobileTask = useQuery(api.ai.tenantImages.getTenantImageTask, outsideMobileTaskId ? { taskId: outsideMobileTaskId } : "skip");
+
+  const [activeModalTarget, setActiveModalTarget] = useState<"team" | "interior" | "outside" | null>(null);
+
+  const uploadFileToStorage = async (file: File): Promise<string> => {
+    const uploadUrl = await generateUploadUrl();
+    const res = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    const { storageId } = await res.json();
+    return storageId as string;
+  };
+
+  // Live progress and status per track
+  const teamAiGenerating = Boolean(teamTask && (teamTask.status === "submitted" || teamTask.status === "processing"));
+  const teamAiProgress = teamTask?.progress ?? 0;
+
+  const interiorAiGenerating = Boolean(interiorTask && (interiorTask.status === "submitted" || interiorTask.status === "processing"));
+  const interiorAiProgress = interiorTask?.progress ?? 0;
+
+  const outsideAiGenerating = Boolean(outsideTask && (outsideTask.status === "submitted" || outsideTask.status === "processing"));
+  const outsideAiProgress = outsideTask?.progress ?? 0;
+
+  const teamMobileAiGenerating = Boolean(teamMobileTask && (teamMobileTask.status === "submitted" || teamMobileTask.status === "processing"));
+  const teamMobileAiProgress = teamMobileTask?.progress ?? 0;
+
+  const interiorMobileAiGenerating = Boolean(interiorMobileTask && (interiorMobileTask.status === "submitted" || interiorMobileTask.status === "processing"));
+  const interiorMobileAiProgress = interiorMobileTask?.progress ?? 0;
+
+  const outsideMobileAiGenerating = Boolean(outsideMobileTask && (outsideMobileTask.status === "submitted" || outsideMobileTask.status === "processing"));
+  const outsideMobileAiProgress = outsideMobileTask?.progress ?? 0;
+
+  // React to completed AI tasks
+  useEffect(() => {
+    if (!teamTask) return;
+    if (teamTask.status === "completed" && teamTask.resultUrls?.[0]) {
+      const url = teamTask.resultUrls[0];
+      const sid = teamTask.resultStorageIds?.[0] || null;
+      if (teamPreview !== url) {
+        setTeamPreview(url);
+        if (sid) setTeamStorageId(sid);
+        setTeamFile(null);
+        pushToast({ type: "success", title: "هوش مصنوعی", message: "تصویر تیم پرسنل با موفقیت تولید شد." });
+      }
+    } else if (teamTask.status === "failed") {
+      pushToast({ type: "error", title: "خطا در تولید تصویر تیم", message: teamTask.errorMessage || "خطای ناشناخته رخ داد." });
+    }
+  }, [teamTask?.status, teamTask?.resultUrls]);
+
+  useEffect(() => {
+    if (!interiorTask) return;
+    if (interiorTask.status === "completed" && interiorTask.resultUrls?.[0]) {
+      const url = interiorTask.resultUrls[0];
+      const sid = interiorTask.resultStorageIds?.[0] || null;
+      if (interiorPreview !== url) {
+        setInteriorPreview(url);
+        if (sid) setInteriorStorageId(sid);
+        setInteriorFile(null);
+        pushToast({ type: "success", title: "هوش مصنوعی", message: "تصویر فضای داخلی با موفقیت تولید شد." });
+      }
+    } else if (interiorTask.status === "failed") {
+      pushToast({ type: "error", title: "خطا در تولید فضای داخلی", message: interiorTask.errorMessage || "خطای ناشناخته رخ داد." });
+    }
+  }, [interiorTask?.status, interiorTask?.resultUrls]);
+
+  useEffect(() => {
+    if (!outsideTask) return;
+    if (outsideTask.status === "completed" && outsideTask.resultUrls?.[0]) {
+      const url = outsideTask.resultUrls[0];
+      const sid = outsideTask.resultStorageIds?.[0] || null;
+      if (outsidePreview !== url) {
+        setOutsidePreview(url);
+        if (sid) setOutsideStorageId(sid);
+        setOutsideFile(null);
+        pushToast({ type: "success", title: "هوش مصنوعی", message: "تصویر نمای بیرونی با موفقیت تولید شد." });
+      }
+    } else if (outsideTask.status === "failed") {
+      pushToast({ type: "error", title: "خطا در تولید نمای بیرونی", message: outsideTask.errorMessage || "خطای ناشناخته رخ داد." });
+    }
+  }, [outsideTask?.status, outsideTask?.resultUrls]);
+
+  useEffect(() => {
+    if (!teamMobileTask) return;
+    if (teamMobileTask.status === "completed" && teamMobileTask.resultUrls?.[0]) {
+      const url = teamMobileTask.resultUrls[0];
+      const sid = teamMobileTask.resultStorageIds?.[0] || null;
+      if (teamMobilePreview !== url) {
+        setTeamMobilePreview(url);
+        if (sid) setTeamMobileStorageId(sid);
+        setTeamMobileFile(null);
+        pushToast({ type: "success", title: "هوش مصنوعی", message: "نسخه موبایل (۱:۱) تصویر تیم تولید شد." });
+      }
+    } else if (teamMobileTask.status === "failed") {
+      pushToast({ type: "error", title: "خطا در تولید موبایل تیم", message: teamMobileTask.errorMessage || "خطای ناشناخته رخ داد." });
+    }
+  }, [teamMobileTask?.status, teamMobileTask?.resultUrls]);
+
+  useEffect(() => {
+    if (!interiorMobileTask) return;
+    if (interiorMobileTask.status === "completed" && interiorMobileTask.resultUrls?.[0]) {
+      const url = interiorMobileTask.resultUrls[0];
+      const sid = interiorMobileTask.resultStorageIds?.[0] || null;
+      if (interiorMobilePreview !== url) {
+        setInteriorMobilePreview(url);
+        if (sid) setInteriorMobileStorageId(sid);
+        setInteriorMobileFile(null);
+        pushToast({ type: "success", title: "هوش مصنوعی", message: "نسخه موبایل (۱:۱) فضای داخلی تولید شد." });
+      }
+    } else if (interiorMobileTask.status === "failed") {
+      pushToast({ type: "error", title: "خطا در تولید موبایل داخلی", message: interiorMobileTask.errorMessage || "خطای ناشناخته رخ داد." });
+    }
+  }, [interiorMobileTask?.status, interiorMobileTask?.resultUrls]);
+
+  useEffect(() => {
+    if (!outsideMobileTask) return;
+    if (outsideMobileTask.status === "completed" && outsideMobileTask.resultUrls?.[0]) {
+      const url = outsideMobileTask.resultUrls[0];
+      const sid = outsideMobileTask.resultStorageIds?.[0] || null;
+      if (outsideMobilePreview !== url) {
+        setOutsideMobilePreview(url);
+        if (sid) setOutsideMobileStorageId(sid);
+        setOutsideMobileFile(null);
+        pushToast({ type: "success", title: "هوش مصنوعی", message: "نسخه موبایل (۱:۱) نمای بیرونی تولید شد." });
+      }
+    } else if (outsideMobileTask.status === "failed") {
+      pushToast({ type: "error", title: "خطا در تولید موبایل بیرونی", message: outsideMobileTask.errorMessage || "خطای ناشناخته رخ داد." });
+    }
+  }, [outsideMobileTask?.status, outsideMobileTask?.resultUrls]);
+
+  // Handlers for starting AI tasks
+  const handleStartDesktopAi = async (modalTarget: "team" | "interior" | "outside", files: File[]) => {
+    try {
+      const rawStorageIds: string[] = [];
+      for (const f of files) {
+        const sid = await uploadFileToStorage(f);
+        rawStorageIds.push(sid);
+      }
+
+      const taskId = await startTenantImageTask({
+        salonType: type,
+        target: modalTarget,
+        rawStorageIds: rawStorageIds as any,
+        salonName: name.trim() || undefined,
+      });
+
+      if (modalTarget === "team") setTeamTaskId(taskId);
+      if (modalTarget === "interior") setInteriorTaskId(taskId);
+      if (modalTarget === "outside") setOutsideTaskId(taskId);
+
+      pushToast({
+        type: "info",
+        title: "هوش مصنوعی",
+        message: "پردازش تصویر با هوش مصنوعی آغاز شد.",
+      });
+    } catch (err: any) {
+      pushToast({
+        type: "error",
+        title: "خطا در شروع پردازش",
+        message: sanitizeError(err),
+      });
+      throw err;
+    }
+  };
+
+  const handleStartMobileAi = async (baseTarget: "team" | "interior" | "outside") => {
+    const mobileTarget = `${baseTarget}Mobile` as "teamMobile" | "interiorMobile" | "outsideMobile";
+
+    let refStorageId: string | null = null;
+    if (baseTarget === "team") refStorageId = teamStorageId;
+    if (baseTarget === "interior") refStorageId = interiorStorageId;
+    if (baseTarget === "outside") refStorageId = outsideStorageId;
+
+    let desktopFile: File | null = null;
+    if (baseTarget === "team") desktopFile = teamFile;
+    if (baseTarget === "interior") desktopFile = interiorFile;
+    if (baseTarget === "outside") desktopFile = outsideFile;
+
+    let desktopPreview: string | null = null;
+    if (baseTarget === "team") desktopPreview = teamPreview;
+    if (baseTarget === "interior") desktopPreview = interiorPreview;
+    if (baseTarget === "outside") desktopPreview = outsidePreview;
+
+    if (!refStorageId && !desktopFile && !desktopPreview) {
+      pushToast({
+        type: "error",
+        title: "خطا",
+        message: "ابتدا باید تصویر دسکتاپ را بارگذاری یا با هوش مصنوعی تولید کنید.",
+      });
+      return;
+    }
+
+    try {
+      if (!refStorageId && desktopFile) {
+        refStorageId = await uploadFileToStorage(desktopFile);
+        if (baseTarget === "team") setTeamStorageId(refStorageId);
+        if (baseTarget === "interior") setInteriorStorageId(refStorageId);
+        if (baseTarget === "outside") setOutsideStorageId(refStorageId);
+      } else if (!refStorageId && desktopPreview) {
+        const res = await fetch(desktopPreview);
+        const blob = await res.blob();
+        const f = new File([blob], `${baseTarget}_source.jpg`, { type: blob.type || "image/jpeg" });
+        refStorageId = await uploadFileToStorage(f);
+        if (baseTarget === "team") setTeamStorageId(refStorageId);
+        if (baseTarget === "interior") setInteriorStorageId(refStorageId);
+        if (baseTarget === "outside") setOutsideStorageId(refStorageId);
+      }
+
+      if (!refStorageId) {
+        throw new Error("امکان خواندن تصویر دسکتاپ وجود ندارد.");
+      }
+
+      const taskId = await startTenantImageTask({
+        salonType: type,
+        target: mobileTarget,
+        rawStorageIds: [refStorageId as any],
+        salonName: name.trim() || undefined,
+      });
+
+      if (mobileTarget === "teamMobile") setTeamMobileTaskId(taskId);
+      if (mobileTarget === "interiorMobile") setInteriorMobileTaskId(taskId);
+      if (mobileTarget === "outsideMobile") setOutsideMobileTaskId(taskId);
+
+      pushToast({
+        type: "info",
+        title: "هوش مصنوعی موبایل",
+        message: "تولید نسخه موبایل (۱:۱) آغاز شد.",
+      });
+    } catch (err: any) {
+      pushToast({
+        type: "error",
+        title: "خطا در تولید نسخه موبایل",
+        message: sanitizeError(err),
+      });
+    }
+  };
+
+  const activeTask =
+    activeModalTarget === "team"
+      ? teamTask
+      : activeModalTarget === "interior"
+      ? interiorTask
+      : activeModalTarget === "outside"
+      ? outsideTask
+      : null;
+
+  const isModalTargetGenerating =
+    Boolean(activeTask && (activeTask.status === "submitted" || activeTask.status === "processing"));
+  const modalTargetProgress = activeTask?.progress ?? 0;
+  const modalTargetPreviewUrl = activeTask?.status === "completed" ? activeTask.resultUrls?.[0] : null;
+  const modalTargetErrorMessage = activeTask?.status === "failed" ? activeTask.errorMessage : undefined;
 
   const [telegram, setTelegram] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -204,6 +621,18 @@ export default function NewTenantPage() {
     setOutsideMobilePreview(null);
     setTeamMobileFile(null);
     setTeamMobilePreview(null);
+    setTeamStorageId(null);
+    setTeamMobileStorageId(null);
+    setInteriorStorageId(null);
+    setInteriorMobileStorageId(null);
+    setOutsideStorageId(null);
+    setOutsideMobileStorageId(null);
+    setTeamTaskId(null);
+    setTeamMobileTaskId(null);
+    setInteriorTaskId(null);
+    setInteriorMobileTaskId(null);
+    setOutsideTaskId(null);
+    setOutsideMobileTaskId(null);
     setTelegram("");
     setInstagram("");
     setWhatsapp("");
@@ -296,6 +725,12 @@ export default function NewTenantPage() {
           setTeamMobilePreview(data.teamMobilePreview);
           try { setTeamMobileFile(base64ToFile(data.teamMobilePreview, "teamMobile.png")); } catch (e) {}
         }
+        if (data.teamStorageId) setTeamStorageId(data.teamStorageId);
+        if (data.teamMobileStorageId) setTeamMobileStorageId(data.teamMobileStorageId);
+        if (data.interiorStorageId) setInteriorStorageId(data.interiorStorageId);
+        if (data.interiorMobileStorageId) setInteriorMobileStorageId(data.interiorMobileStorageId);
+        if (data.outsideStorageId) setOutsideStorageId(data.outsideStorageId);
+        if (data.outsideMobileStorageId) setOutsideMobileStorageId(data.outsideMobileStorageId);
 
         setIsDraftRestored(true);
       } catch (e) {
@@ -341,6 +776,12 @@ export default function NewTenantPage() {
       interiorMobilePreview,
       outsideMobilePreview,
       teamMobilePreview,
+      teamStorageId,
+      teamMobileStorageId,
+      interiorStorageId,
+      interiorMobileStorageId,
+      outsideStorageId,
+      outsideMobileStorageId,
     };
 
     try {
@@ -396,6 +837,12 @@ export default function NewTenantPage() {
     interiorMobilePreview,
     outsideMobilePreview,
     teamMobilePreview,
+    teamStorageId,
+    teamMobileStorageId,
+    interiorStorageId,
+    interiorMobileStorageId,
+    outsideStorageId,
+    outsideMobileStorageId,
   ]);
 
   // Validation per step
@@ -416,12 +863,12 @@ export default function NewTenantPage() {
       }
       if (!title.trim()) errs.title = "عنوان سایت الزامی است";
       if (!cityId) errs.cityId = "انتخاب شهر الزامی است";
+      if (!location) errs.location = "تعیین موقعیت مکانی روی نقشه الزامی است";
+      if (!address.trim()) errs.address = "آدرس کامل شعبه الزامی است";
     }
-    if (step === 1) {
-      if (!location) errs.location = "تعیین موقعیت مکانی اجباری است";
-      if (!certificateFile && !certificatePreview) errs.certificate = "آپلود تصویر مجوز اجباری است";
-    }
-    if (step === 3) {
+    // step === 1: settings & socials (optional)
+    if (step === 2) {
+      // step 2: members
       if (owners.length === 0) errs.owners = "حداقل یک مدیر برای شعبه الزامی است";
       owners.forEach((o, i) => {
         if (o.type === "new") {
@@ -440,13 +887,18 @@ export default function NewTenantPage() {
         }
       });
     }
+    // step === 3: services & models (optional)
+    if (step === 4) {
+      // step 4: content & media
+      if (!certificateFile && !certificatePreview) errs.certificate = "آپلود تصویر مجوز اجباری است";
+    }
     return errs;
   };
 
   const canProceed = useMemo(() => {
     return Object.keys(validateStep(currentStep)).length === 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, name, subdomain, title, cityId, location, certificateFile, certificatePreview, owners, staff, subdomainCheck, isCheckingSubdomain]);
+  }, [currentStep, name, subdomain, title, cityId, location, address, certificateFile, certificatePreview, owners, staff, subdomainCheck, isCheckingSubdomain]);
 
   const handleNext = () => {
     const errs = validateStep(currentStep);
@@ -505,9 +957,13 @@ export default function NewTenantPage() {
     }
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
-      if (allErrors.name || allErrors.subdomain || allErrors.title || allErrors.cityId) setCurrentStep(0);
-      else if (allErrors.location || allErrors.certificate) setCurrentStep(1);
-      else if (allErrors.owners || allErrors.staff) setCurrentStep(3);
+      if (allErrors.name || allErrors.subdomain || allErrors.title || allErrors.cityId || allErrors.location || allErrors.address) {
+        setCurrentStep(0);
+      } else if (allErrors.owners || allErrors.staff || Object.keys(allErrors).some(k => k.startsWith("owner_") || k.startsWith("staff_"))) {
+        setCurrentStep(2);
+      } else if (allErrors.certificate) {
+        setCurrentStep(4);
+      }
       return;
     }
 
@@ -525,6 +981,12 @@ export default function NewTenantPage() {
         return storageId as string;
       };
 
+      const resolveFinalStorageId = async (file: File | null, existingSid?: string | null) => {
+        if (existingSid) return existingSid;
+        if (file) return await uploadImage(file);
+        return undefined;
+      };
+
       const [
         certificateImageId,
         interiorImageId,
@@ -535,12 +997,12 @@ export default function NewTenantPage() {
         teamMobileImageId
       ] = await Promise.all([
         uploadImage(certificateFile),
-        uploadImage(interiorFile),
-        uploadImage(outsideFile),
-        uploadImage(teamFile),
-        uploadImage(interiorMobileFile),
-        uploadImage(outsideMobileFile),
-        uploadImage(teamMobileFile),
+        resolveFinalStorageId(interiorFile, interiorStorageId),
+        resolveFinalStorageId(outsideFile, outsideStorageId),
+        resolveFinalStorageId(teamFile, teamStorageId),
+        resolveFinalStorageId(interiorMobileFile, interiorMobileStorageId),
+        resolveFinalStorageId(outsideMobileFile, outsideMobileStorageId),
+        resolveFinalStorageId(teamMobileFile, teamMobileStorageId),
       ]);
 
       const mapMember = (m: MemberState) => ({
@@ -877,261 +1339,100 @@ export default function NewTenantPage() {
                   dir="ltr"
                 />
               </div>
-            </div>
-          )}
 
-          {/* ── Step 1: Content & Essential ──────────────── */}
-          {currentStep === 1 && (
-            <div className="flex flex-col gap-6">
-              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/20">
-                    <FiLayout className="text-lg text-violet-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">محتوای سایت و شعبه</h2>
-                    <p className="text-xs text-white/40">موقعیت مکانی، تصاویر و محتوای صفحات</p>
-                  </div>
-                </div>
-
-                {/* Location */}
-                <div className="mb-6">
-                  <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              {/* Location & Address Section (Full Width & Centered) */}
+              <div className="mt-8 border-t border-white/10 pt-6 w-full">
+                <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
+                      <FiMapPin className="text-lg text-amber-400" />
+                    </div>
                     <div>
-                      <label className="text-sm font-bold text-white flex items-center gap-2">
-                        موقعیت مکانی
-                        <span className="text-rose-400">*</span>
-                      </label>
-                      <p className="text-xs text-white/40 mt-1">موقعیت دقیق شعبه روی نقشه</p>
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        موقعیت مکانی و آدرس شعبه
+                        <span className="text-rose-400 text-sm">*</span>
+                      </h3>
+                      <p className="text-xs text-white/40">تعیین دقیق لوکیشن روی نقشه و ثبت نشانی فیزیکی شعبه (هر دو الزامی)</p>
                     </div>
-                    {location && (
-                      <span className="text-xs font-mono text-white/30">
-                        {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-                      </span>
-                    )}
                   </div>
-
-                  <LocationPicker value={location} onChange={setLocation} />
-                  {errors.location && (
-                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
-                      <FiAlertCircle />
-                      {errors.location}
-                    </div>
+                  {location && (
+                    <span className="text-xs font-mono text-white/50 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 self-start sm:self-auto flex items-center gap-1.5" dir="ltr">
+                      <FiMapPin className="text-amber-400 text-xs shrink-0" />
+                      {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+                    </span>
                   )}
                 </div>
 
-                {/* Address Auto-fill */}
-                <div className="mb-6">
-                  <div className="mb-2 flex items-center justify-between">
-                    <label className="block text-xs font-bold text-white/50">
-                      <FiMapPin className="inline ml-1" />
-                      آدرس کامل شعبه
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleFetchAddress}
-                      disabled={fetchingAddress || !location}
-                      className="cursor-pointer text-[10px] font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      {fetchingAddress ? <FiLoader className="animate-spin text-xs" /> : <FiMapPin className="text-xs" />}
-                      دریافت از نقشه
-                    </button>
-                  </div>
-                  <textarea
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="آدرس کامل را وارد کنید یا از نقشه دریافت کنید"
-                    rows={2}
-                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-500/40 focus:bg-white/8 placeholder:text-white/20"
-                  />
-                </div>
-
-                {/* Hero and About Us */}
-                <div className="flex flex-col gap-5 mt-6 border-t border-white/10 pt-6">
-                  <InputField
-                    label="عنوان هیرو (عنوان بزرگ بالای سایت)"
-                    icon={<FiType />}
-                    value={heroTitle}
-                    onChange={setHeroTitle}
-                    placeholder="مثلاً: آرایشگاه رویال - همه روزه در خدمت شما"
-                  />
-                  <InputField
-                    label="زیرعنوان هیرو"
-                    icon={<FiFileText />}
-                    value={heroSubTitle}
-                    onChange={setHeroSubTitle}
-                    placeholder="توضیح کوتاه زیر عنوان اصلی"
-                  />
-                  <TextareaField
-                    label="متن درباره ما"
-                    icon={<FiFileText />}
-                    value={aboutUsText}
-                    onChange={setAboutUsText}
-                    placeholder="معرفی کامل آرایشگاه برای بخش درباره ما..."
-                    rows={5}
-                  />
-                </div>
-              </div>
-
-              {/* Images */}
-              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
-                    <FiImage className="text-lg text-amber-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">تصاویر شعبه و مجوز</h2>
-                    <p className="text-xs text-white/40">بارگذاری تصاویر لازم برای سایت</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-5">
-                  <div className="col-span-1 lg:col-span-2">
-                    <label className="mb-2 block text-xs font-bold text-white/50">
-                      تصویر مجوز فعالیت
-                      <span className="text-rose-400 text-sm mr-1">*</span>
-                    </label>
-                    <div
-                      onClick={() => certInputRef.current?.click()}
-                      className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 transition-all min-h-[200px] ${certificatePreview
-                        ? "border-emerald-500/30 bg-emerald-500/5"
-                        : errors.certificate
-                          ? "border-rose-500/40 bg-rose-500/5"
-                          : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
-                        }`}
-                    >
-                      {certificatePreview ? (
-                        <div className="relative flex flex-col items-center justify-center max-w-full">
-                          <img
-                            src={certificatePreview}
-                            alt="Certificate preview"
-                            className="max-h-[150px] max-w-full object-contain rounded-xl shadow-lg"
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCertificateFile(null);
-                              setCertificatePreview(null);
-                            }}
-                            className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
-                          >
-                            <FiX />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-                            <FiCamera className="text-xl text-white/30" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-white/50">انتخاب تصویر</p>
-                            <p className="text-[10px] text-white/25 mt-1">PNG, JPG تا ۵ مگابایت</p>
-                          </div>
-                        </>
+                <LocationPicker
+                  value={location}
+                  onChange={(loc) => {
+                    setLocation(loc);
+                    if (errors.location) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.location;
+                        return next;
+                      });
+                    }
+                  }}
+                  error={errors.location}
+                  mapHeight="380px"
+                  addressSlot={
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-white/50 flex items-center gap-1.5">
+                          <FiMapPin className="text-orange-400" />
+                          آدرس کامل شعبه
+                          <span className="text-rose-400">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleFetchAddress}
+                          disabled={fetchingAddress || !location}
+                          className="cursor-pointer text-[11px] font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 rounded-xl px-2.5 py-1"
+                        >
+                          {fetchingAddress ? <FiLoader className="animate-spin text-xs" /> : <FiMapPin className="text-xs" />}
+                          دریافت از نقشه
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={address}
+                          onChange={(e) => {
+                            setAddress(e.target.value);
+                            if (errors.address) {
+                              setErrors((prev) => {
+                                const next = { ...prev };
+                                delete next.address;
+                                return next;
+                              });
+                            }
+                          }}
+                          placeholder="آدرس کامل را وارد کنید یا از دکمه دریافت از نقشه استفاده نمایید"
+                          className={`w-full h-[46px] rounded-2xl border bg-white/5 px-4 text-sm text-white outline-none transition placeholder:text-white/20 ${
+                            errors.address
+                              ? "border-rose-500/40 focus:border-rose-500/60"
+                              : "border-white/10 focus:border-orange-500/40 focus:bg-white/8"
+                          }`}
+                        />
+                      </div>
+                      {errors.address && (
+                        <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                          <FiAlertCircle className="shrink-0" />
+                          <span>{errors.address}</span>
+                        </p>
                       )}
                     </div>
-                    <input
-                      ref={certInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleCertificateChange}
-                      className="hidden"
-                    />
-                    {errors.certificate && (
-                      <p className="mt-2 text-xs text-rose-400">{errors.certificate}</p>
-                    )}
-                  </div>
-
-                  <ImageUploadCard
-                    title="تصویر تیم"
-                    description="یک تصویر از اعضای تیم شعبه"
-                    preview={teamPreview}
-                    onTrigger={() => teamInputRef.current?.click()}
-                    onRemove={() => {
-                      setTeamFile(null);
-                      setTeamPreview(null);
-                    }}
-                    inputRef={teamInputRef}
-                    onChange={handleTeamChange}
-                    error={errors.team}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر تیم (نسخه موبایل)"
-                    description="یک تصویر عمودی از اعضای تیم برای دستگاه‌های موبایل"
-                    preview={teamMobilePreview}
-                    onTrigger={() => teamMobileInputRef.current?.click()}
-                    onRemove={() => {
-                      setTeamMobileFile(null);
-                      setTeamMobilePreview(null);
-                    }}
-                    inputRef={teamMobileInputRef}
-                    onChange={handleTeamMobileChange}
-                    error={errors.teamMobile}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر فضای داخلی"
-                    description="نمایی از فضای داخل شعبه"
-                    preview={interiorPreview}
-                    onTrigger={() => interiorInputRef.current?.click()}
-                    onRemove={() => {
-                      setInteriorFile(null);
-                      setInteriorPreview(null);
-                    }}
-                    inputRef={interiorInputRef}
-                    onChange={handleInteriorChange}
-                    error={errors.interior}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر فضای داخلی (نسخه موبایل)"
-                    description="نمایی عمودی از فضای داخل شعبه برای دستگاه‌های موبایل"
-                    preview={interiorMobilePreview}
-                    onTrigger={() => interiorMobileInputRef.current?.click()}
-                    onRemove={() => {
-                      setInteriorMobileFile(null);
-                      setInteriorMobilePreview(null);
-                    }}
-                    inputRef={interiorMobileInputRef}
-                    onChange={handleInteriorMobileChange}
-                    error={errors.interiorMobile}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر نمای بیرونی"
-                    description="ورودی یا نمای بیرون شعبه"
-                    preview={outsidePreview}
-                    onTrigger={() => outsideInputRef.current?.click()}
-                    onRemove={() => {
-                      setOutsideFile(null);
-                      setOutsidePreview(null);
-                    }}
-                    inputRef={outsideInputRef}
-                    onChange={handleOutsideChange}
-                    error={errors.outside}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر نمای بیرونی (نسخه موبایل)"
-                    description="نمایی عمودی از ورودی یا بیرون شعبه برای دستگاه‌های موبایل"
-                    preview={outsideMobilePreview}
-                    onTrigger={() => outsideMobileInputRef.current?.click()}
-                    onRemove={() => {
-                      setOutsideMobileFile(null);
-                      setOutsideMobilePreview(null);
-                    }}
-                    inputRef={outsideMobileInputRef}
-                    onChange={handleOutsideMobileChange}
-                    error={errors.outsideMobile}
-                  />
-                </div>
+                  }
+                />
               </div>
             </div>
           )}
 
-          {/* ── Step 2: Settings & Socials ──────────────── */}
-          {currentStep === 2 && (
+          
+          {/* ── Step 1: Settings & Socials ──────────────── */}
+          {currentStep === 1 && (
             <div className="flex flex-col gap-6">
               {/* Social links */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
@@ -1340,8 +1641,9 @@ export default function NewTenantPage() {
               </div>
             </div>
           )}
-          {/* ── Step 3: Members ──────────────────────────── */}
-          {currentStep === 3 && (
+          
+          {/* ── Step 2: Members ──────────────────────────── */}
+          {currentStep === 2 && (
             <div className="flex flex-col gap-8">
               {/* Owners Section */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
@@ -1443,8 +1745,9 @@ export default function NewTenantPage() {
               </div>
             </div>
           )}
-          {/* ── Step 4: Services & Models ──────────────────────────── */}
-          {currentStep === 4 && (
+          
+          {/* ── Step 3: Services & Models ──────────────────────────── */}
+          {currentStep === 3 && (
             <div className="flex flex-col gap-8">
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
                 <div className="mb-6 flex items-center justify-between">
@@ -1483,7 +1786,488 @@ export default function NewTenantPage() {
               </div>
             </div>
           )}
-        </motion.div>
+        
+          {/* ── Step 4: Content & Media ──────────────────── */}
+          {currentStep === 4 && (
+            <div className="flex flex-col gap-6">
+              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/20">
+                    <FiLayout className="text-lg text-violet-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">محتوای سایت و تصاویر شعبه</h2>
+                    <p className="text-xs text-white/40">تولید هوشمند متون با هوش مصنوعی و آپلود تصاویر شعبه</p>
+                  </div>
+                </div>
+
+                {/* Hero and About Us */}
+                <div className="flex flex-col gap-5 mt-6 border-t border-white/10 pt-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 text-violet-400">
+                        <FiZap className="text-base" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">تولید هوشمند متون و درباره ما</h3>
+                        <p className="text-[11px] text-white/40">تولید شعارهای جذاب و معرفی با هوش مصنوعی (Gemini 3.8 Flash)</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleAiClick("all")}
+                      disabled={generatingField !== null}
+                      className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-purple-500/30"
+                    >
+                      {generatingField === "all" ? (
+                        <>
+                          <FiLoader className="animate-spin text-sm" />
+                          <span>در حال نگارش با هوش مصنوعی...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FiZap className="text-amber-300 text-sm animate-pulse" />
+                          <span>تولید خودکار محتوا با هوش مصنوعی</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <InputField
+                    label="عنوان هیرو (عنوان بزرگ بالای سایت)"
+                    icon={<FiType />}
+                    value={heroTitle}
+                    onChange={setHeroTitle}
+                    placeholder="مثلاً: آرایشگاه رویال - همه روزه در خدمت شما"
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleAiClick("heroTitle")}
+                        disabled={generatingField !== null}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="بازتولید عنوان هیرو با هوش مصنوعی"
+                      >
+                        {generatingField === "heroTitle" ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال تولید...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiRefreshCw className="text-xs" />
+                            <span>بازتولید با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                  <InputField
+                    label="زیرعنوان هیرو"
+                    icon={<FiFileText />}
+                    value={heroSubTitle}
+                    onChange={setHeroSubTitle}
+                    placeholder="توضیح کوتاه زیر عنوان اصلی"
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleAiClick("heroSubTitle")}
+                        disabled={generatingField !== null}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="بازتولید زیرعنوان با هوش مصنوعی"
+                      >
+                        {generatingField === "heroSubTitle" ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال تولید...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiRefreshCw className="text-xs" />
+                            <span>بازتولید با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                  <TextareaField
+                    label="متن درباره ما"
+                    icon={<FiFileText />}
+                    value={aboutUsText}
+                    onChange={setAboutUsText}
+                    placeholder="معرفی کامل آرایشگاه برای بخش درباره ما..."
+                    rows={5}
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleAiClick("aboutUsText")}
+                        disabled={generatingField !== null}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="بازتولید متن درباره ما با هوش مصنوعی"
+                      >
+                        {generatingField === "aboutUsText" ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال تولید...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiRefreshCw className="text-xs" />
+                            <span>بازتولید با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Images */}
+              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
+                    <FiImage className="text-lg text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">تصاویر شعبه و مجوز</h2>
+                    <p className="text-xs text-white/40">بارگذاری تصاویر لازم برای سایت</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-5">
+                  <div className="col-span-1 lg:col-span-2">
+                    <label className="mb-2 block text-xs font-bold text-white/50">
+                      تصویر مجوز فعالیت
+                      <span className="text-rose-400 text-sm mr-1">*</span>
+                    </label>
+                    <div
+                      onClick={() => certInputRef.current?.click()}
+                      className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 transition-all min-h-[200px] ${certificatePreview
+                        ? "border-emerald-500/30 bg-emerald-500/5"
+                        : errors.certificate
+                          ? "border-rose-500/40 bg-rose-500/5"
+                          : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
+                        }`}
+                    >
+                      {certificatePreview ? (
+                        <div className="relative flex flex-col items-center justify-center max-w-full">
+                          <img
+                            src={certificatePreview}
+                            alt="Certificate preview"
+                            className="max-h-[150px] max-w-full object-contain rounded-xl shadow-lg"
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCertificateFile(null);
+                              setCertificatePreview(null);
+                            }}
+                            className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
+                          >
+                            <FiX />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+                            <FiCamera className="text-xl text-white/30" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-white/50">انتخاب تصویر</p>
+                            <p className="text-[10px] text-white/25 mt-1">PNG, JPG تا ۵ مگابایت</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <input
+                      ref={certInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCertificateChange}
+                      className="hidden"
+                    />
+                    {errors.certificate && (
+                      <p className="mt-2 text-xs text-rose-400">{errors.certificate}</p>
+                    )}
+                  </div>
+
+                  <ImageUploadCard
+                    title="تصویر تیم"
+                    description="یک تصویر عریض ۲:۱ از اعضای تیم شعبه"
+                    preview={teamPreview}
+                    onTrigger={() => teamInputRef.current?.click()}
+                    onRemove={() => {
+                      setTeamFile(null);
+                      setTeamPreview(null);
+                      setTeamStorageId(null);
+                      setTeamTaskId(null);
+                    }}
+                    onDownload={() =>
+                      teamPreview &&
+                      handleDownloadImage(
+                        teamPreview,
+                        `bestiee-${name.trim() || "salon"}-team-2x1.jpg`
+                      )
+                    }
+                    inputRef={teamInputRef}
+                    onChange={handleTeamChange}
+                    error={errors.team}
+                    isAiGenerating={teamAiGenerating}
+                    aiProgress={teamAiProgress}
+                    aiAction={
+                      <button
+                        type="button"
+                        onClick={() => setActiveModalTarget("team")}
+                        disabled={teamAiGenerating}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600/30 to-purple-600/30 hover:from-violet-600/50 hover:to-purple-600/50 border border-violet-500/40 px-3 py-1.5 text-[11px] font-bold text-violet-200 transition shadow-sm disabled:opacity-40"
+                      >
+                        {teamAiGenerating ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال پردازش ({Math.round(teamAiProgress)}٪)</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiZap className="text-amber-300 text-xs" />
+                            <span>فیلتر با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر تیم (نسخه موبایل)"
+                    description="نسخه مربعی ۱:۱ از اعضای تیم برای دستگاه‌های موبایل"
+                    preview={teamMobilePreview}
+                    onTrigger={() => teamMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setTeamMobileFile(null);
+                      setTeamMobilePreview(null);
+                      setTeamMobileStorageId(null);
+                      setTeamMobileTaskId(null);
+                    }}
+                    onDownload={() =>
+                      teamMobilePreview &&
+                      handleDownloadImage(
+                        teamMobilePreview,
+                        `bestiee-${name.trim() || "salon"}-team-1x1.jpg`
+                      )
+                    }
+                    inputRef={teamMobileInputRef}
+                    onChange={handleTeamMobileChange}
+                    error={errors.teamMobile}
+                    isAiGenerating={teamMobileAiGenerating}
+                    aiProgress={teamMobileAiProgress}
+                    aiAction={
+                      <button
+                        type="button"
+                        onClick={() => handleStartMobileAi("team")}
+                        disabled={!teamPreview || teamMobileAiGenerating}
+                        title={!teamPreview ? "ابتدا تصویر دسکتاپ را بارگذاری یا با هوش مصنوعی تولید کنید" : "تولید نسخه مربعی ۱:۱ از تصویر دسکتاپ"}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600/30 to-blue-600/30 hover:from-indigo-600/50 hover:to-blue-600/50 border border-indigo-500/40 px-3 py-1.5 text-[11px] font-bold text-indigo-200 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        {teamMobileAiGenerating ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>تولید ۱:۱ ({Math.round(teamMobileAiProgress)}٪)</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiZap className="text-cyan-300 text-xs" />
+                            <span>تولید نسخه موبایل (۱:۱) با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر فضای داخلی"
+                    description="نمایی عریض ۲:۱ از فضای داخل شعبه"
+                    preview={interiorPreview}
+                    onTrigger={() => interiorInputRef.current?.click()}
+                    onRemove={() => {
+                      setInteriorFile(null);
+                      setInteriorPreview(null);
+                      setInteriorStorageId(null);
+                      setInteriorTaskId(null);
+                    }}
+                    onDownload={() =>
+                      interiorPreview &&
+                      handleDownloadImage(
+                        interiorPreview,
+                        `bestiee-${name.trim() || "salon"}-interior-2x1.jpg`
+                      )
+                    }
+                    inputRef={interiorInputRef}
+                    onChange={handleInteriorChange}
+                    error={errors.interior}
+                    isAiGenerating={interiorAiGenerating}
+                    aiProgress={interiorAiProgress}
+                    aiAction={
+                      <button
+                        type="button"
+                        onClick={() => setActiveModalTarget("interior")}
+                        disabled={interiorAiGenerating}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600/30 to-purple-600/30 hover:from-violet-600/50 hover:to-purple-600/50 border border-violet-500/40 px-3 py-1.5 text-[11px] font-bold text-violet-200 transition shadow-sm disabled:opacity-40"
+                      >
+                        {interiorAiGenerating ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال پردازش ({Math.round(interiorAiProgress)}٪)</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiZap className="text-amber-300 text-xs" />
+                            <span>فیلتر با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر فضای داخلی (نسخه موبایل)"
+                    description="نسخه مربعی ۱:۱ از فضای داخل شعبه برای دستگاه‌های موبایل"
+                    preview={interiorMobilePreview}
+                    onTrigger={() => interiorMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setInteriorMobileFile(null);
+                      setInteriorMobilePreview(null);
+                      setInteriorMobileStorageId(null);
+                      setInteriorMobileTaskId(null);
+                    }}
+                    onDownload={() =>
+                      interiorMobilePreview &&
+                      handleDownloadImage(
+                        interiorMobilePreview,
+                        `bestiee-${name.trim() || "salon"}-interior-1x1.jpg`
+                      )
+                    }
+                    inputRef={interiorMobileInputRef}
+                    onChange={handleInteriorMobileChange}
+                    error={errors.interiorMobile}
+                    isAiGenerating={interiorMobileAiGenerating}
+                    aiProgress={interiorMobileAiProgress}
+                    aiAction={
+                      <button
+                        type="button"
+                        onClick={() => handleStartMobileAi("interior")}
+                        disabled={!interiorPreview || interiorMobileAiGenerating}
+                        title={!interiorPreview ? "ابتدا تصویر دسکتاپ را بارگذاری یا با هوش مصنوعی تولید کنید" : "تولید نسخه مربعی ۱:۱ از تصویر دسکتاپ"}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600/30 to-blue-600/30 hover:from-indigo-600/50 hover:to-blue-600/50 border border-indigo-500/40 px-3 py-1.5 text-[11px] font-bold text-indigo-200 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        {interiorMobileAiGenerating ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>تولید ۱:۱ ({Math.round(interiorMobileAiProgress)}٪)</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiZap className="text-cyan-300 text-xs" />
+                            <span>تولید نسخه موبایل (۱:۱) با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر نمای بیرونی"
+                    description="نمایی عریض ۲:۱ از ورودی یا نمای بیرون شعبه"
+                    preview={outsidePreview}
+                    onTrigger={() => outsideInputRef.current?.click()}
+                    onRemove={() => {
+                      setOutsideFile(null);
+                      setOutsidePreview(null);
+                      setOutsideStorageId(null);
+                      setOutsideTaskId(null);
+                    }}
+                    onDownload={() =>
+                      outsidePreview &&
+                      handleDownloadImage(
+                        outsidePreview,
+                        `bestiee-${name.trim() || "salon"}-outside-2x1.jpg`
+                      )
+                    }
+                    inputRef={outsideInputRef}
+                    onChange={handleOutsideChange}
+                    error={errors.outside}
+                    isAiGenerating={outsideAiGenerating}
+                    aiProgress={outsideAiProgress}
+                    aiAction={
+                      <button
+                        type="button"
+                        onClick={() => setActiveModalTarget("outside")}
+                        disabled={outsideAiGenerating}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600/30 to-purple-600/30 hover:from-violet-600/50 hover:to-purple-600/50 border border-violet-500/40 px-3 py-1.5 text-[11px] font-bold text-violet-200 transition shadow-sm disabled:opacity-40"
+                      >
+                        {outsideAiGenerating ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال پردازش ({Math.round(outsideAiProgress)}٪)</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiZap className="text-amber-300 text-xs" />
+                            <span>فیلتر با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر نمای بیرونی (نسخه موبایل)"
+                    description="نسخه مربعی ۱:۱ از ورودی یا بیرون شعبه برای دستگاه‌های موبایل"
+                    preview={outsideMobilePreview}
+                    onTrigger={() => outsideMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setOutsideMobileFile(null);
+                      setOutsideMobilePreview(null);
+                      setOutsideMobileStorageId(null);
+                      setOutsideMobileTaskId(null);
+                    }}
+                    onDownload={() =>
+                      outsideMobilePreview &&
+                      handleDownloadImage(
+                        outsideMobilePreview,
+                        `bestiee-${name.trim() || "salon"}-outside-1x1.jpg`
+                      )
+                    }
+                    inputRef={outsideMobileInputRef}
+                    onChange={handleOutsideMobileChange}
+                    error={errors.outsideMobile}
+                    isAiGenerating={outsideMobileAiGenerating}
+                    aiProgress={outsideMobileAiProgress}
+                    aiAction={
+                      <button
+                        type="button"
+                        onClick={() => handleStartMobileAi("outside")}
+                        disabled={!outsidePreview || outsideMobileAiGenerating}
+                        title={!outsidePreview ? "ابتدا تصویر دسکتاپ را بارگذاری یا با هوش مصنوعی تولید کنید" : "تولید نسخه مربعی ۱:۱ از تصویر دسکتاپ"}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600/30 to-blue-600/30 hover:from-indigo-600/50 hover:to-blue-600/50 border border-indigo-500/40 px-3 py-1.5 text-[11px] font-bold text-indigo-200 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        {outsideMobileAiGenerating ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>تولید ۱:۱ ({Math.round(outsideMobileAiProgress)}٪)</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiZap className="text-cyan-300 text-xs" />
+                            <span>تولید نسخه موبایل (۱:۱) با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          </motion.div>
       </AnimatePresence>
 
       {/* ── Navigation Buttons ────────────────────────────── */}
@@ -1528,6 +2312,95 @@ export default function NewTenantPage() {
           )}
         </div>
       </div>
+
+      {/* Overwrite Confirmation Modal */}
+      {mounted && typeof window !== "undefined" && createPortal(
+        <AnimatePresence>
+          {overwriteConfirm && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+              >
+                <div className="flex items-center gap-3 text-amber-400 mb-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                    <FiAlertCircle className="text-xl" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">جایگزینی متن با هوش مصنوعی</h3>
+                    <p className="text-xs text-white/50">تایید بازنویسی فیلدهای تکمیل‌شده</p>
+                  </div>
+                </div>
+                <p className="text-sm text-white/70 leading-relaxed mb-6">
+                  فیلدهای مورد نظر در حال حاضر دارای متن هستند. در صورت ادامه، متن‌های جدید تولید شده توسط هوش مصنوعی جایگزین متن‌های فعلی خواهند شد. آیا مطمئن هستید؟
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setOverwriteConfirm(null)}
+                    className="cursor-pointer rounded-xl bg-white/5 hover:bg-white/10 px-4 py-2.5 text-xs font-bold text-white/70 transition"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = overwriteConfirm;
+                      setOverwriteConfirm(null);
+                      executeAiGeneration(target);
+                    }}
+                    className="cursor-pointer rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-orange-500/20 transition"
+                  >
+                    تایید و جایگزینی
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* AI Image Generation Modal */}
+      {activeModalTarget && (
+        <AiImageGenerationModal
+          isOpen={activeModalTarget !== null}
+          onClose={() => setActiveModalTarget(null)}
+          target={activeModalTarget}
+          tenantType={type}
+          tenantName={name.trim()}
+          isGenerating={isModalTargetGenerating}
+          progress={modalTargetProgress}
+          statusMessage={
+            activeTask?.status === "submitted"
+              ? "درخواست به سرور هوش مصنوعی ارسال شد..."
+              : activeTask?.status === "processing"
+              ? "در حال رتوش چهره‌ها، تنظیم نور و اصلاح استایل..."
+              : undefined
+          }
+          errorMessage={modalTargetErrorMessage}
+          generatedPreviewUrl={modalTargetPreviewUrl}
+          onStartGeneration={(files) => handleStartDesktopAi(activeModalTarget, files)}
+          onApplyImage={() => setActiveModalTarget(null)}
+          onReset={() => {
+            if (activeModalTarget === "team") {
+              setTeamTaskId(null);
+              setTeamPreview(null);
+              setTeamStorageId(null);
+            } else if (activeModalTarget === "interior") {
+              setInteriorTaskId(null);
+              setInteriorPreview(null);
+              setInteriorStorageId(null);
+            } else if (activeModalTarget === "outside") {
+              setOutsideTaskId(null);
+              setOutsidePreview(null);
+              setOutsideStorageId(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1767,16 +2640,20 @@ interface InputFieldProps {
   error?: string;
   dir?: "ltr" | "rtl";
   type?: string;
+  action?: React.ReactNode;
 }
 
-function InputField({ label, icon, value, onChange, placeholder, required, error, dir, type = "text" }: InputFieldProps) {
+function InputField({ label, icon, value, onChange, placeholder, required, error, dir, type = "text", action }: InputFieldProps) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
-        <span className="text-orange-400/60">{icon}</span>
-        {label}
-        {required && <span className="text-rose-400">*</span>}
-      </label>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
+          <span className="text-orange-400/60">{icon}</span>
+          {label}
+          {required && <span className="text-rose-400">*</span>}
+        </label>
+        {action}
+      </div>
       <div className={`flex items-center gap-3 rounded-2xl border bg-white/5 px-4 py-3 transition focus-within:bg-white/8 ${error ? "border-rose-500/50" : "border-white/10 focus-within:border-orange-500/40"
         }`}>
         <input
@@ -1802,16 +2679,20 @@ interface TextareaFieldProps {
   required?: boolean;
   error?: string;
   rows?: number;
+  action?: React.ReactNode;
 }
 
-function TextareaField({ label, icon, value, onChange, placeholder, required, error, rows = 3 }: TextareaFieldProps) {
+function TextareaField({ label, icon, value, onChange, placeholder, required, error, rows = 3, action }: TextareaFieldProps) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
-        <span className="text-orange-400/60">{icon}</span>
-        {label}
-        {required && <span className="text-rose-400">*</span>}
-      </label>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
+          <span className="text-orange-400/60">{icon}</span>
+          {label}
+          {required && <span className="text-rose-400">*</span>}
+        </label>
+        {action}
+      </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1831,55 +2712,119 @@ function ImageUploadCard({
   preview,
   onTrigger,
   onRemove,
+  onDownload,
   inputRef,
   onChange,
   error,
+  aiAction,
+  isAiGenerating,
+  aiProgress,
 }: {
   title: string;
   description: string;
   preview: string | null;
   onTrigger: () => void;
   onRemove: () => void;
+  onDownload?: () => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   error?: string;
+  aiAction?: React.ReactNode;
+  isAiGenerating?: boolean;
+  aiProgress?: number;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col justify-between">
-      <div className="mb-4">
-        <h3 className="text-sm font-bold text-white">{title}</h3>
-        <p className="mt-1 text-[11px] text-white/35 leading-relaxed">{description}</p>
+    <div className={`rounded-2xl border bg-white/5 p-4 flex flex-col justify-between transition-all ${
+      isAiGenerating ? "border-violet-500/40 ring-1 ring-violet-500/20 shadow-lg shadow-violet-500/10" : "border-white/10"
+    }`}>
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-bold text-white">{title}</h3>
+          <p className="mt-1 text-[11px] text-white/35 leading-relaxed">{description}</p>
+        </div>
+        {aiAction && <div className="shrink-0">{aiAction}</div>}
       </div>
 
       <div
-        onClick={onTrigger}
-        className={`cursor-pointer flex min-h-56 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 text-center transition-all ${preview
-          ? "border-emerald-500/30 bg-emerald-500/5"
-          : error
-            ? "border-rose-500/40 bg-rose-500/5"
-            : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
-          }`}
+        onClick={isAiGenerating ? undefined : onTrigger}
+        className={`flex min-h-56 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+          isAiGenerating
+            ? "cursor-wait border-violet-500/40 bg-violet-500/5"
+            : preview
+            ? "cursor-pointer border-emerald-500/30 bg-emerald-500/5"
+            : error
+            ? "cursor-pointer border-rose-500/40 bg-rose-500/5"
+            : "cursor-pointer border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
+        }`}
       >
-        {preview ? (
-          <div className="relative flex flex-col items-center justify-center max-w-full">
+        {isAiGenerating ? (
+          <div className="flex flex-col items-center justify-center p-4 text-center">
+            <div className="relative mb-3 flex h-14 w-14 items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-2 border-violet-500/20 border-t-violet-400 animate-spin" />
+              <FiZap className="text-xl text-violet-400 animate-pulse" />
+            </div>
+            <p className="text-xs font-bold text-white mb-2">در حال پردازش هوش مصنوعی...</p>
+            <div className="w-36 bg-white/10 h-2 rounded-full overflow-hidden mb-1.5 border border-white/5">
+              <div
+                className="h-full bg-gradient-to-r from-violet-500 via-purple-500 to-amber-400 transition-all duration-300 rounded-full"
+                style={{ width: `${Math.max(10, Math.min(100, aiProgress || 0))}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-white/40 font-mono">{Math.round(aiProgress || 0)}٪</span>
+          </div>
+        ) : preview ? (
+          <div className="relative flex flex-col items-center justify-center max-w-full group">
             <img
               src={preview}
               alt={title}
               className="max-h-44 max-w-full object-contain rounded-xl border border-white/10 shadow-lg"
             />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
-            >
-              <FiX />
-            </button>
-            <p className="mt-3 text-xs text-emerald-400">
-              <FiCheck className="ml-1 inline" />
-              تصویر انتخاب شد
-            </p>
+            <div className="absolute -top-2 -right-2 flex items-center gap-1.5">
+              {onDownload && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDownload();
+                  }}
+                  className="cursor-pointer flex h-6 w-6 items-center justify-center rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs shadow-lg transition"
+                  title="دانلود تصویر"
+                >
+                  <FiDownload size={11} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                className="cursor-pointer flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs shadow-lg transition"
+                title="حذف تصویر"
+              >
+                <FiX size={12} />
+              </button>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <p className="text-xs text-emerald-400">
+                <FiCheck className="ml-1 inline" />
+                تصویر انتخاب شد
+              </p>
+              {onDownload && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDownload();
+                  }}
+                  className="cursor-pointer text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition"
+                  title="دانلود تصویر"
+                >
+                  <FiDownload className="text-xs" />
+                  <span>دانلود فایل</span>
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <>
@@ -1937,6 +2882,8 @@ function ServiceSelectionCard({
 
   const isServiceSelected = tenantServices.some(ts => ts.serviceId === service._id && !ts.modelId);
   const selectedModelsCount = tenantServices.filter(ts => ts.serviceId === service._id && ts.modelId).length;
+  const totalModelsCount = modelsQuery ? modelsQuery.length : 0;
+  const isAllModelsSelected = totalModelsCount > 0 && selectedModelsCount === totalModelsCount;
 
   const toggleService = () => {
     if (isServiceSelected) {
@@ -1951,7 +2898,61 @@ function ServiceSelectionCard({
     if (isModelSelected) {
       setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && ts.modelId === modelId)));
     } else {
-      setTenantServices(prev => [...prev, { serviceId: service._id, modelId, price: 0, duration: 30 }]);
+      setTenantServices(prev => [...prev, {
+        serviceId: service._id,
+        modelId,
+        price: bulkPrice > 0 ? bulkPrice : 0,
+        duration: bulkDuration > 0 ? bulkDuration : 30
+      }]);
+    }
+  };
+
+  const toggleAllModels = () => {
+    if (!modelsQuery || modelsQuery.length === 0) return;
+    if (isAllModelsSelected) {
+      setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && ts.modelId)));
+    } else {
+      setTenantServices(prev => {
+        const next = [...prev];
+        modelsQuery.forEach((model: any) => {
+          const alreadyExists = next.some(ts => ts.serviceId === service._id && ts.modelId === model._id);
+          if (!alreadyExists) {
+            next.push({
+              serviceId: service._id,
+              modelId: model._id,
+              price: bulkPrice > 0 ? bulkPrice : 0,
+              duration: bulkDuration > 0 ? bulkDuration : 30,
+            });
+          }
+        });
+        return next;
+      });
+    }
+  };
+
+  const toggleGroupModels = (models: any[]) => {
+    if (!models || models.length === 0) return;
+    const groupModelIds = new Set(models.map(m => m._id));
+    const isAllGroupSelected = models.every(m => tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === m._id));
+
+    if (isAllGroupSelected) {
+      setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && ts.modelId && groupModelIds.has(ts.modelId))));
+    } else {
+      setTenantServices(prev => {
+        const next = [...prev];
+        models.forEach((model: any) => {
+          const alreadyExists = next.some(ts => ts.serviceId === service._id && ts.modelId === model._id);
+          if (!alreadyExists) {
+            next.push({
+              serviceId: service._id,
+              modelId: model._id,
+              price: bulkPrice > 0 ? bulkPrice : 0,
+              duration: bulkDuration > 0 ? bulkDuration : 30,
+            });
+          }
+        });
+        return next;
+      });
     }
   };
 
@@ -2014,7 +3015,7 @@ function ServiceSelectionCard({
                 {selectedModelsCount > 0 ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-0.5 text-[11px] font-bold text-indigo-300">
                     <FiCheck className="text-[10px]" />
-                    {selectedModelsCount} مدل انتخاب شده
+                    {selectedModelsCount} از {totalModelsCount} مدل انتخاب شده
                   </span>
                 ) : (
                   <span className="text-xs text-white/35">برای انتخاب مدل‌ها کلیک کنید</span>
@@ -2105,15 +3106,40 @@ function ServiceSelectionCard({
                   className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-white/5 transition"
                 />
               </div>
-              <button
-                type="button"
-                onClick={handleSyncModels}
-                disabled={selectedModelsCount === 0}
-                className="w-full sm:w-auto cursor-pointer flex items-center justify-center gap-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 shrink-0 h-[38px]"
-              >
-                <FiRefreshCw className="text-xs" />
-                <span>همگام‌سازی ({selectedModelsCount} مدل)</span>
-              </button>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleAllModels}
+                  className={`cursor-pointer flex items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all active:scale-95 h-[38px] border ${
+                    isAllModelsSelected
+                      ? "bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20"
+                      : "bg-white/5 text-white/80 border-white/10 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {isAllModelsSelected ? (
+                    <>
+                      <FiX className="text-xs text-rose-400" />
+                      <span>لغو انتخاب همه</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiCheck className="text-xs text-indigo-400" />
+                      <span>انتخاب همه ({totalModelsCount})</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncModels}
+                  disabled={selectedModelsCount === 0}
+                  className="cursor-pointer flex items-center justify-center gap-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 shrink-0 h-[38px]"
+                >
+                  <FiRefreshCw className="text-xs" />
+                  <span>همگام‌سازی ({selectedModelsCount})</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -2129,10 +3155,43 @@ function ServiceSelectionCard({
               {Object.entries(groupedModels).map(([groupName, models]) => (
                 <div key={groupName} className="flex flex-col gap-3">
                   {/* Group header */}
-                  <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-400/80" />
-                    <h4 className="text-xs font-black text-indigo-300">{groupName}</h4>
-                    <span className="text-[10px] text-white/30 font-bold">({models.length} مدل)</span>
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-400/80" />
+                      <h4 className="text-xs font-black text-indigo-300">{groupName}</h4>
+                      <span className="text-[10px] text-white/30 font-bold">({models.length} مدل)</span>
+                    </div>
+
+                    {(() => {
+                      const isGroupAllSelected = models.every(m => tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === m._id));
+                      const groupSelectedCount = models.filter(m => tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === m._id)).length;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroupModels(models)}
+                          className={`cursor-pointer flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition border ${
+                            isGroupAllSelected
+                              ? "bg-rose-500/10 text-rose-300 border-rose-500/20 hover:bg-rose-500/20"
+                              : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          {isGroupAllSelected ? (
+                            <>
+                              <FiX className="text-xs text-rose-400" />
+                              <span>لغو همه</span>
+                            </>
+                          ) : (
+                            <>
+                              <FiCheck className="text-xs text-indigo-400" />
+                              <span>
+                                انتخاب همه
+                                {groupSelectedCount > 0 ? ` (${groupSelectedCount}/${models.length})` : ""}
+                              </span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })()}
                   </div>
                   {/* Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">

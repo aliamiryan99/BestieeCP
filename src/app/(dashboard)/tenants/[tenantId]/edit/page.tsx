@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@backend/api";
 import { useToastStore } from "@/store/toastStore";
 import { sanitizeError } from "@/lib/utils";
@@ -38,6 +38,7 @@ import {
   FiSearch,
   FiList,
   FiRefreshCw,
+  FiZap,
 } from "react-icons/fi";
 
 const LocationPicker = dynamic(() => import("@/components/profile/LocationPicker"), { ssr: false });
@@ -45,11 +46,11 @@ const MAIN_DOMAIN = "bestiee.ir";
 
 // ─── Step indicator config ────────────────────────────────────────────────────
 const STEPS = [
-  { key: "basic", label: "اطلاعات اصلی", icon: <FiHash /> },
-  { key: "content", label: "محتوای سایت و شعبه", icon: <FiLayout /> },
+  { key: "basic", label: "اطلاعات اصلی و آدرس", icon: <FiHash /> },
   { key: "settings", label: "تنظیمات و شبکه‌ها", icon: <FiSettings /> },
   { key: "members", label: "مدیران و پرسنل", icon: <FiUsers /> },
   { key: "services", label: "خدمات و مدل‌ها", icon: <FiList /> },
+  { key: "content", label: "محتوای سایت و شعبه", icon: <FiLayout /> },
 ] as const;
 
 
@@ -91,6 +92,8 @@ export default function EditTenantPage() {
   const tenantId = params.tenantId;
   const initialData = useQuery(api.tenants.tenants.get, { tenantId });
   const generateUploadUrl = useMutation(api.uploads.upload.generateUploadUrl);
+  const generateAiContent = useAction(api.ai.tenantContent.generateTenantContent);
+  const cities = useQuery(api.cities.listActive);
 
   // Step control
   const [currentStep, setCurrentStep] = useState(0);
@@ -107,6 +110,112 @@ export default function EditTenantPage() {
   const [heroTitle, setHeroTitle] = useState("");
   const [heroSubTitle, setHeroSubTitle] = useState("");
   const [aboutUsText, setAboutUsText] = useState("");
+
+  const selectedCityName = useMemo(() => {
+    if (!cities || !cityId) return "";
+    const found = cities.find((c: any) => c._id === cityId);
+    return found?.name || "";
+  }, [cities, cityId]);
+
+  const [generatingField, setGeneratingField] = useState<"all" | "heroTitle" | "heroSubTitle" | "aboutUsText" | null>(null);
+  const [overwriteConfirm, setOverwriteConfirm] = useState<"all" | "heroTitle" | "heroSubTitle" | "aboutUsText" | null>(null);
+
+  const executeAiGeneration = async (target: "all" | "heroTitle" | "heroSubTitle" | "aboutUsText") => {
+    setGeneratingField(target);
+    try {
+      const res = await generateAiContent({
+        name: name.trim(),
+        type,
+        city: selectedCityName,
+        address: address.trim(),
+        targetField: target,
+      });
+
+      if (target === "all") {
+        if (res.heroTitle) setHeroTitle(res.heroTitle);
+        if (res.heroSubTitle) setHeroSubTitle(res.heroSubTitle);
+        if (res.aboutUsText) setAboutUsText(res.aboutUsText);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "متن‌های هیرو و درباره ما با موفقیت تولید شدند.",
+        });
+      } else if (target === "heroTitle" && res.heroTitle) {
+        setHeroTitle(res.heroTitle);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "عنوان هیرو با موفقیت بازتولید شد.",
+        });
+      } else if (target === "heroSubTitle" && res.heroSubTitle) {
+        setHeroSubTitle(res.heroSubTitle);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "زیرعنوان هیرو با موفقیت بازتولید شد.",
+        });
+      } else if (target === "aboutUsText" && res.aboutUsText) {
+        setAboutUsText(res.aboutUsText);
+        pushToast({
+          type: "success",
+          title: "هوش مصنوعی",
+          message: "متن درباره ما با موفقیت بازتولید شد.",
+        });
+      }
+    } catch (err: any) {
+      pushToast({
+        type: "error",
+        title: "خطا در هوش مصنوعی",
+        message: sanitizeError(err),
+      });
+    } finally {
+      setGeneratingField(null);
+    }
+  };
+
+  const handleAiClick = (target: "all" | "heroTitle" | "heroSubTitle" | "aboutUsText") => {
+    if (!name.trim()) {
+      pushToast({
+        type: "error",
+        title: "اطلاعات ناقص",
+        message: "لطفاً ابتدا نام شعبه را در مرحله اول وارد کنید.",
+      });
+      return;
+    }
+    if (!selectedCityName) {
+      pushToast({
+        type: "error",
+        title: "اطلاعات ناقص",
+        message: "لطفاً ابتدا شهر شعبه را در مرحله اول انتخاب کنید.",
+      });
+      return;
+    }
+    if (!address.trim()) {
+      pushToast({
+        type: "error",
+        title: "اطلاعات ناقص",
+        message: "لطفاً ابتدا آدرس کامل شعبه را وارد یا از روی نقشه دریافت کنید.",
+      });
+      return;
+    }
+
+    let hasExistingContent = false;
+    if (target === "all") {
+      hasExistingContent = Boolean(heroTitle.trim() || heroSubTitle.trim() || aboutUsText.trim());
+    } else if (target === "heroTitle") {
+      hasExistingContent = Boolean(heroTitle.trim());
+    } else if (target === "heroSubTitle") {
+      hasExistingContent = Boolean(heroSubTitle.trim());
+    } else if (target === "aboutUsText") {
+      hasExistingContent = Boolean(aboutUsText.trim());
+    }
+
+    if (hasExistingContent) {
+      setOverwriteConfirm(target);
+    } else {
+      executeAiGeneration(target);
+    }
+  };
 
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
@@ -246,12 +355,12 @@ export default function EditTenantPage() {
         errs.subdomain = "فقط حروف کوچک انگلیسی، اعداد و خط تیره";
       if (!title.trim()) errs.title = "عنوان سایت الزامی است";
       if (!cityId) errs.cityId = "انتخاب شهر الزامی است";
+      if (!location) errs.location = "تعیین موقعیت مکانی روی نقشه الزامی است";
+      if (!address.trim()) errs.address = "آدرس کامل شعبه الزامی است";
     }
-    if (step === 1) {
-      if (!location) errs.location = "تعیین موقعیت مکانی اجباری است";
-      if (!certificateFile && !certificatePreview) errs.certificate = "آپلود تصویر مجوز اجباری است";
-    }
-    if (step === 3) {
+    // step === 1: settings & socials (optional)
+    if (step === 2) {
+      // step 2: members
       if (owners.length === 0) errs.owners = "حداقل یک مدیر برای شعبه الزامی است";
       owners.forEach((o, i) => {
         if (o.type === "new") {
@@ -270,13 +379,18 @@ export default function EditTenantPage() {
         }
       });
     }
+    // step === 3: services & models (optional)
+    if (step === 4) {
+      // step 4: content & media
+      if (!certificateFile && !certificatePreview) errs.certificate = "آپلود تصویر مجوز اجباری است";
+    }
     return errs;
   };
 
   const canProceed = useMemo(() => {
     return Object.keys(validateStep(currentStep)).length === 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, name, subdomain, title, cityId, location, certificateFile, certificatePreview, owners, staff]);
+  }, [currentStep, name, subdomain, title, cityId, location, address, certificateFile, certificatePreview, owners, staff]);
 
   const handleNext = () => {
     const errs = validateStep(currentStep);
@@ -335,9 +449,13 @@ export default function EditTenantPage() {
     }
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
-      if (allErrors.name || allErrors.subdomain || allErrors.title || allErrors.cityId) setCurrentStep(0);
-      else if (allErrors.location || allErrors.certificate) setCurrentStep(1);
-      else if (allErrors.owners || allErrors.staff) setCurrentStep(3);
+      if (allErrors.name || allErrors.subdomain || allErrors.title || allErrors.cityId || allErrors.location || allErrors.address) {
+        setCurrentStep(0);
+      } else if (allErrors.owners || allErrors.staff || Object.keys(allErrors).some(k => k.startsWith("owner_") || k.startsWith("staff_"))) {
+        setCurrentStep(2);
+      } else if (allErrors.certificate) {
+        setCurrentStep(4);
+      }
       return;
     }
 
@@ -646,15 +764,13 @@ export default function EditTenantPage() {
                   </div>
                 </div>
 
-                <div className="col-span-1 lg:col-span-2">
-                  <CitySelect
-                    label="شهر شعبه"
-                    value={cityId}
-                    onChange={setCityId}
-                    error={errors.cityId}
-                    required
-                  />
-                </div>
+                <CitySelect
+                  label="شهر شعبه"
+                  value={cityId}
+                  onChange={setCityId}
+                  error={errors.cityId}
+                  required
+                />
 
                 <InputField
                   label="تلفن شعبه"
@@ -665,261 +781,100 @@ export default function EditTenantPage() {
                   dir="ltr"
                 />
               </div>
-            </div>
-          )}
 
-          {/* ── Step 1: Content & Essential ──────────────── */}
-          {currentStep === 1 && (
-            <div className="flex flex-col gap-6">
-              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/20">
-                    <FiLayout className="text-lg text-violet-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">محتوای سایت و شعبه</h2>
-                    <p className="text-xs text-white/40">موقعیت مکانی، تصاویر و محتوای صفحات</p>
-                  </div>
-                </div>
-
-                {/* Location */}
-                <div className="mb-6">
-                  <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              {/* Location & Address Section (Full Width & Centered) */}
+              <div className="mt-8 border-t border-white/10 pt-6 w-full">
+                <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
+                      <FiMapPin className="text-lg text-amber-400" />
+                    </div>
                     <div>
-                      <label className="text-sm font-bold text-white flex items-center gap-2">
-                        موقعیت مکانی
-                        <span className="text-rose-400">*</span>
-                      </label>
-                      <p className="text-xs text-white/40 mt-1">موقعیت دقیق شعبه روی نقشه</p>
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        موقعیت مکانی و آدرس شعبه
+                        <span className="text-rose-400 text-sm">*</span>
+                      </h3>
+                      <p className="text-xs text-white/40">تعیین دقیق لوکیشن روی نقشه و ثبت نشانی فیزیکی شعبه (هر دو الزامی)</p>
                     </div>
-                    {location && (
-                      <span className="text-xs font-mono text-white/30">
-                        {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-                      </span>
-                    )}
                   </div>
-
-                  <LocationPicker value={location} onChange={setLocation} />
-                  {errors.location && (
-                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
-                      <FiAlertCircle />
-                      {errors.location}
-                    </div>
+                  {location && (
+                    <span className="text-xs font-mono text-white/50 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 self-start sm:self-auto flex items-center gap-1.5" dir="ltr">
+                      <FiMapPin className="text-amber-400 text-xs shrink-0" />
+                      {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+                    </span>
                   )}
                 </div>
 
-                {/* Address Auto-fill */}
-                <div className="mb-6">
-                  <div className="mb-2 flex items-center justify-between">
-                    <label className="block text-xs font-bold text-white/50">
-                      <FiMapPin className="inline ml-1" />
-                      آدرس کامل شعبه
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleFetchAddress}
-                      disabled={fetchingAddress || !location}
-                      className="cursor-pointer text-[10px] font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      {fetchingAddress ? <FiLoader className="animate-spin text-xs" /> : <FiMapPin className="text-xs" />}
-                      دریافت از نقشه
-                    </button>
-                  </div>
-                  <textarea
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="آدرس کامل را وارد کنید یا از نقشه دریافت کنید"
-                    rows={2}
-                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-500/40 focus:bg-white/8 placeholder:text-white/20"
-                  />
-                </div>
-
-                {/* Hero and About Us */}
-                <div className="flex flex-col gap-5 mt-6 border-t border-white/10 pt-6">
-                  <InputField
-                    label="عنوان هیرو (عنوان بزرگ بالای سایت)"
-                    icon={<FiType />}
-                    value={heroTitle}
-                    onChange={setHeroTitle}
-                    placeholder="مثلاً: آرایشگاه رویال - همه روزه در خدمت شما"
-                  />
-                  <InputField
-                    label="زیرعنوان هیرو"
-                    icon={<FiFileText />}
-                    value={heroSubTitle}
-                    onChange={setHeroSubTitle}
-                    placeholder="توضیح کوتاه زیر عنوان اصلی"
-                  />
-                  <TextareaField
-                    label="متن درباره ما"
-                    icon={<FiFileText />}
-                    value={aboutUsText}
-                    onChange={setAboutUsText}
-                    placeholder="معرفی کامل آرایشگاه برای بخش درباره ما..."
-                    rows={5}
-                  />
-                </div>
-              </div>
-
-              {/* Images */}
-              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
-                    <FiImage className="text-lg text-amber-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">تصاویر شعبه و مجوز</h2>
-                    <p className="text-xs text-white/40">بارگذاری تصاویر لازم برای سایت</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-5">
-                  <div className="col-span-1 lg:col-span-2">
-                    <label className="mb-2 block text-xs font-bold text-white/50">
-                      تصویر مجوز فعالیت
-                      <span className="text-rose-400 text-sm mr-1">*</span>
-                    </label>
-                    <div
-                      onClick={() => certInputRef.current?.click()}
-                      className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 transition-all min-h-[200px] ${certificatePreview
-                        ? "border-emerald-500/30 bg-emerald-500/5"
-                        : errors.certificate
-                          ? "border-rose-500/40 bg-rose-500/5"
-                          : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
-                        }`}
-                    >
-                      {certificatePreview ? (
-                        <div className="relative flex flex-col items-center justify-center max-w-full">
-                          <img
-                            src={certificatePreview}
-                            alt="Certificate preview"
-                            className="max-h-[150px] max-w-full object-contain rounded-xl shadow-lg"
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCertificateFile(null);
-                              setCertificatePreview(null);
-                            }}
-                            className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
-                          >
-                            <FiX />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-                            <FiCamera className="text-xl text-white/30" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-white/50">انتخاب تصویر</p>
-                            <p className="text-[10px] text-white/25 mt-1">PNG, JPG تا ۵ مگابایت</p>
-                          </div>
-                        </>
+                <LocationPicker
+                  value={location}
+                  onChange={(loc) => {
+                    setLocation(loc);
+                    if (errors.location) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.location;
+                        return next;
+                      });
+                    }
+                  }}
+                  error={errors.location}
+                  mapHeight="380px"
+                  addressSlot={
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-white/50 flex items-center gap-1.5">
+                          <FiMapPin className="text-orange-400" />
+                          آدرس کامل شعبه
+                          <span className="text-rose-400">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleFetchAddress}
+                          disabled={fetchingAddress || !location}
+                          className="cursor-pointer text-[11px] font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 rounded-xl px-2.5 py-1"
+                        >
+                          {fetchingAddress ? <FiLoader className="animate-spin text-xs" /> : <FiMapPin className="text-xs" />}
+                          دریافت از نقشه
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={address}
+                          onChange={(e) => {
+                            setAddress(e.target.value);
+                            if (errors.address) {
+                              setErrors((prev) => {
+                                const next = { ...prev };
+                                delete next.address;
+                                return next;
+                              });
+                            }
+                          }}
+                          placeholder="آدرس کامل را وارد کنید یا از دکمه دریافت از نقشه استفاده نمایید"
+                          className={`w-full h-[46px] rounded-2xl border bg-white/5 px-4 text-sm text-white outline-none transition placeholder:text-white/20 ${
+                            errors.address
+                              ? "border-rose-500/40 focus:border-rose-500/60"
+                              : "border-white/10 focus:border-orange-500/40 focus:bg-white/8"
+                          }`}
+                        />
+                      </div>
+                      {errors.address && (
+                        <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                          <FiAlertCircle className="shrink-0" />
+                          <span>{errors.address}</span>
+                        </p>
                       )}
                     </div>
-                    <input
-                      ref={certInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleCertificateChange}
-                      className="hidden"
-                    />
-                    {errors.certificate && (
-                      <p className="mt-2 text-xs text-rose-400">{errors.certificate}</p>
-                    )}
-                  </div>
-
-                  <ImageUploadCard
-                    title="تصویر تیم"
-                    description="یک تصویر از اعضای تیم شعبه"
-                    preview={teamPreview}
-                    onTrigger={() => teamInputRef.current?.click()}
-                    onRemove={() => {
-                      setTeamFile(null);
-                      setTeamPreview(null);
-                    }}
-                    inputRef={teamInputRef}
-                    onChange={handleTeamChange}
-                    error={errors.team}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر تیم (نسخه موبایل)"
-                    description="یک تصویر عمودی از اعضای تیم برای دستگاه‌های موبایل"
-                    preview={teamMobilePreview}
-                    onTrigger={() => teamMobileInputRef.current?.click()}
-                    onRemove={() => {
-                      setTeamMobileFile(null);
-                      setTeamMobilePreview(null);
-                    }}
-                    inputRef={teamMobileInputRef}
-                    onChange={handleTeamMobileChange}
-                    error={errors.teamMobile}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر فضای داخلی"
-                    description="نمایی از فضای داخل شعبه"
-                    preview={interiorPreview}
-                    onTrigger={() => interiorInputRef.current?.click()}
-                    onRemove={() => {
-                      setInteriorFile(null);
-                      setInteriorPreview(null);
-                    }}
-                    inputRef={interiorInputRef}
-                    onChange={handleInteriorChange}
-                    error={errors.interior}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر فضای داخلی (نسخه موبایل)"
-                    description="نمایی عمودی از فضای داخل شعبه برای دستگاه‌های موبایل"
-                    preview={interiorMobilePreview}
-                    onTrigger={() => interiorMobileInputRef.current?.click()}
-                    onRemove={() => {
-                      setInteriorMobileFile(null);
-                      setInteriorMobilePreview(null);
-                    }}
-                    inputRef={interiorMobileInputRef}
-                    onChange={handleInteriorMobileChange}
-                    error={errors.interiorMobile}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر نمای بیرونی"
-                    description="ورودی یا نمای بیرون شعبه"
-                    preview={outsidePreview}
-                    onTrigger={() => outsideInputRef.current?.click()}
-                    onRemove={() => {
-                      setOutsideFile(null);
-                      setOutsidePreview(null);
-                    }}
-                    inputRef={outsideInputRef}
-                    onChange={handleOutsideChange}
-                    error={errors.outside}
-                  />
-
-                  <ImageUploadCard
-                    title="تصویر نمای بیرونی (نسخه موبایل)"
-                    description="نمایی عمودی از ورودی یا بیرون شعبه برای دستگاه‌های موبایل"
-                    preview={outsideMobilePreview}
-                    onTrigger={() => outsideMobileInputRef.current?.click()}
-                    onRemove={() => {
-                      setOutsideMobileFile(null);
-                      setOutsideMobilePreview(null);
-                    }}
-                    inputRef={outsideMobileInputRef}
-                    onChange={handleOutsideMobileChange}
-                    error={errors.outsideMobile}
-                  />
-                </div>
+                  }
+                />
               </div>
             </div>
           )}
 
-          {/* ── Step 2: Settings & Socials ──────────────── */}
-          {currentStep === 2 && (
+          
+          {/* ── Step 1: Settings & Socials ──────────────── */}
+          {currentStep === 1 && (
             <div className="flex flex-col gap-6">
               {/* Social links */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
@@ -1128,8 +1083,9 @@ export default function EditTenantPage() {
               </div>
             </div>
           )}
-          {/* ── Step 3: Members ──────────────────────────── */}
-          {currentStep === 3 && (
+          
+          {/* ── Step 2: Members ──────────────────────────── */}
+          {currentStep === 2 && (
             <div className="flex flex-col gap-8">
               {/* Owners Section */}
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
@@ -1231,8 +1187,9 @@ export default function EditTenantPage() {
               </div>
             </div>
           )}
-          {/* ── Step 4: Services & Models ──────────────────────────── */}
-          {currentStep === 4 && (
+          
+          {/* ── Step 3: Services & Models ──────────────────────────── */}
+          {currentStep === 3 && (
             <div className="flex flex-col gap-8">
               <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
                 <div className="mb-6 flex items-center justify-between">
@@ -1271,7 +1228,299 @@ export default function EditTenantPage() {
               </div>
             </div>
           )}
-        </motion.div>
+        
+          {/* ── Step 4: Content & Media ──────────────────── */}
+          {currentStep === 4 && (
+            <div className="flex flex-col gap-6">
+              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/20">
+                    <FiLayout className="text-lg text-violet-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">محتوای سایت و تصاویر شعبه</h2>
+                    <p className="text-xs text-white/40">تولید هوشمند متون با هوش مصنوعی و آپلود تصاویر شعبه</p>
+                  </div>
+                </div>
+
+                {/* Hero and About Us */}
+                <div className="flex flex-col gap-5 mt-6 border-t border-white/10 pt-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 text-violet-400">
+                        <FiZap className="text-base" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">تولید هوشمند متون و درباره ما</h3>
+                        <p className="text-[11px] text-white/40">تولید شعارهای جذاب و معرفی با هوش مصنوعی (Gemini 3.8 Flash)</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleAiClick("all")}
+                      disabled={generatingField !== null}
+                      className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-purple-500/30"
+                    >
+                      {generatingField === "all" ? (
+                        <>
+                          <FiLoader className="animate-spin text-sm" />
+                          <span>در حال نگارش با هوش مصنوعی...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FiZap className="text-amber-300 text-sm animate-pulse" />
+                          <span>تولید خودکار محتوا با هوش مصنوعی</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <InputField
+                    label="عنوان هیرو (عنوان بزرگ بالای سایت)"
+                    icon={<FiType />}
+                    value={heroTitle}
+                    onChange={setHeroTitle}
+                    placeholder="مثلاً: آرایشگاه رویال - همه روزه در خدمت شما"
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleAiClick("heroTitle")}
+                        disabled={generatingField !== null}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="بازتولید عنوان هیرو با هوش مصنوعی"
+                      >
+                        {generatingField === "heroTitle" ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال تولید...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiRefreshCw className="text-xs" />
+                            <span>بازتولید با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                  <InputField
+                    label="زیرعنوان هیرو"
+                    icon={<FiFileText />}
+                    value={heroSubTitle}
+                    onChange={setHeroSubTitle}
+                    placeholder="توضیح کوتاه زیر عنوان اصلی"
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleAiClick("heroSubTitle")}
+                        disabled={generatingField !== null}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="بازتولید زیرعنوان با هوش مصنوعی"
+                      >
+                        {generatingField === "heroSubTitle" ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال تولید...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiRefreshCw className="text-xs" />
+                            <span>بازتولید با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                  <TextareaField
+                    label="متن درباره ما"
+                    icon={<FiFileText />}
+                    value={aboutUsText}
+                    onChange={setAboutUsText}
+                    placeholder="معرفی کامل آرایشگاه برای بخش درباره ما..."
+                    rows={5}
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleAiClick("aboutUsText")}
+                        disabled={generatingField !== null}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="بازتولید متن درباره ما با هوش مصنوعی"
+                      >
+                        {generatingField === "aboutUsText" ? (
+                          <>
+                            <FiLoader className="animate-spin text-xs" />
+                            <span>در حال تولید...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiRefreshCw className="text-xs" />
+                            <span>بازتولید با هوش مصنوعی</span>
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Images */}
+              <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-slate-800/60 to-slate-900/80 p-6 shadow-xl">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
+                    <FiImage className="text-lg text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">تصاویر شعبه و مجوز</h2>
+                    <p className="text-xs text-white/40">بارگذاری تصاویر لازم برای سایت</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-5">
+                  <div className="col-span-1 lg:col-span-2">
+                    <label className="mb-2 block text-xs font-bold text-white/50">
+                      تصویر مجوز فعالیت
+                      <span className="text-rose-400 text-sm mr-1">*</span>
+                    </label>
+                    <div
+                      onClick={() => certInputRef.current?.click()}
+                      className={`cursor-pointer flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-6 transition-all min-h-[200px] ${certificatePreview
+                        ? "border-emerald-500/30 bg-emerald-500/5"
+                        : errors.certificate
+                          ? "border-rose-500/40 bg-rose-500/5"
+                          : "border-white/15 bg-white/3 hover:border-white/30 hover:bg-white/5"
+                        }`}
+                    >
+                      {certificatePreview ? (
+                        <div className="relative flex flex-col items-center justify-center max-w-full">
+                          <img
+                            src={certificatePreview}
+                            alt="Certificate preview"
+                            className="max-h-[150px] max-w-full object-contain rounded-xl shadow-lg"
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCertificateFile(null);
+                              setCertificatePreview(null);
+                            }}
+                            className="cursor-pointer absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs shadow-lg"
+                          >
+                            <FiX />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+                            <FiCamera className="text-xl text-white/30" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-white/50">انتخاب تصویر</p>
+                            <p className="text-[10px] text-white/25 mt-1">PNG, JPG تا ۵ مگابایت</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <input
+                      ref={certInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCertificateChange}
+                      className="hidden"
+                    />
+                    {errors.certificate && (
+                      <p className="mt-2 text-xs text-rose-400">{errors.certificate}</p>
+                    )}
+                  </div>
+
+                  <ImageUploadCard
+                    title="تصویر تیم"
+                    description="یک تصویر از اعضای تیم شعبه"
+                    preview={teamPreview}
+                    onTrigger={() => teamInputRef.current?.click()}
+                    onRemove={() => {
+                      setTeamFile(null);
+                      setTeamPreview(null);
+                    }}
+                    inputRef={teamInputRef}
+                    onChange={handleTeamChange}
+                    error={errors.team}
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر تیم (نسخه موبایل)"
+                    description="یک تصویر عمودی از اعضای تیم برای دستگاه‌های موبایل"
+                    preview={teamMobilePreview}
+                    onTrigger={() => teamMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setTeamMobileFile(null);
+                      setTeamMobilePreview(null);
+                    }}
+                    inputRef={teamMobileInputRef}
+                    onChange={handleTeamMobileChange}
+                    error={errors.teamMobile}
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر فضای داخلی"
+                    description="نمایی از فضای داخل شعبه"
+                    preview={interiorPreview}
+                    onTrigger={() => interiorInputRef.current?.click()}
+                    onRemove={() => {
+                      setInteriorFile(null);
+                      setInteriorPreview(null);
+                    }}
+                    inputRef={interiorInputRef}
+                    onChange={handleInteriorChange}
+                    error={errors.interior}
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر فضای داخلی (نسخه موبایل)"
+                    description="نمایی عمودی از فضای داخل شعبه برای دستگاه‌های موبایل"
+                    preview={interiorMobilePreview}
+                    onTrigger={() => interiorMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setInteriorMobileFile(null);
+                      setInteriorMobilePreview(null);
+                    }}
+                    inputRef={interiorMobileInputRef}
+                    onChange={handleInteriorMobileChange}
+                    error={errors.interiorMobile}
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر نمای بیرونی"
+                    description="ورودی یا نمای بیرون شعبه"
+                    preview={outsidePreview}
+                    onTrigger={() => outsideInputRef.current?.click()}
+                    onRemove={() => {
+                      setOutsideFile(null);
+                      setOutsidePreview(null);
+                    }}
+                    inputRef={outsideInputRef}
+                    onChange={handleOutsideChange}
+                    error={errors.outside}
+                  />
+
+                  <ImageUploadCard
+                    title="تصویر نمای بیرونی (نسخه موبایل)"
+                    description="نمایی عمودی از ورودی یا بیرون شعبه برای دستگاه‌های موبایل"
+                    preview={outsideMobilePreview}
+                    onTrigger={() => outsideMobileInputRef.current?.click()}
+                    onRemove={() => {
+                      setOutsideMobileFile(null);
+                      setOutsideMobilePreview(null);
+                    }}
+                    inputRef={outsideMobileInputRef}
+                    onChange={handleOutsideMobileChange}
+                    error={errors.outsideMobile}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          </motion.div>
       </AnimatePresence>
 
       {/* ── Navigation Buttons ────────────────────────────── */}
@@ -1316,6 +1565,53 @@ export default function EditTenantPage() {
           )}
         </div>
       </div>
+
+      {/* Overwrite Confirmation Modal */}
+      <AnimatePresence>
+        {overwriteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+            >
+              <div className="flex items-center gap-3 text-amber-400 mb-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                  <FiAlertCircle className="text-xl" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">جایگزینی متن با هوش مصنوعی</h3>
+                  <p className="text-xs text-white/50">تایید بازنویسی فیلدهای تکمیل‌شده</p>
+                </div>
+              </div>
+              <p className="text-sm text-white/70 leading-relaxed mb-6">
+                فیلدهای مورد نظر در حال حاضر دارای متن هستند. در صورت ادامه، متن‌های جدید تولید شده توسط هوش مصنوعی جایگزین متن‌های فعلی خواهند شد. آیا مطمئن هستید؟
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOverwriteConfirm(null)}
+                  className="cursor-pointer rounded-xl bg-white/5 hover:bg-white/10 px-4 py-2.5 text-xs font-bold text-white/70 transition"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = overwriteConfirm;
+                    setOverwriteConfirm(null);
+                    executeAiGeneration(target);
+                  }}
+                  className="cursor-pointer rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-orange-500/20 transition"
+                >
+                  تایید و جایگزینی
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1555,16 +1851,20 @@ interface InputFieldProps {
   error?: string;
   dir?: "ltr" | "rtl";
   type?: string;
+  action?: React.ReactNode;
 }
 
-function InputField({ label, icon, value, onChange, placeholder, required, error, dir, type = "text" }: InputFieldProps) {
+function InputField({ label, icon, value, onChange, placeholder, required, error, dir, type = "text", action }: InputFieldProps) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
-        <span className="text-orange-400/60">{icon}</span>
-        {label}
-        {required && <span className="text-rose-400">*</span>}
-      </label>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
+          <span className="text-orange-400/60">{icon}</span>
+          {label}
+          {required && <span className="text-rose-400">*</span>}
+        </label>
+        {action}
+      </div>
       <div className={`flex items-center gap-3 rounded-2xl border bg-white/5 px-4 py-3 transition focus-within:bg-white/8 ${error ? "border-rose-500/50" : "border-white/10 focus-within:border-orange-500/40"
         }`}>
         <input
@@ -1590,16 +1890,20 @@ interface TextareaFieldProps {
   required?: boolean;
   error?: string;
   rows?: number;
+  action?: React.ReactNode;
 }
 
-function TextareaField({ label, icon, value, onChange, placeholder, required, error, rows = 3 }: TextareaFieldProps) {
+function TextareaField({ label, icon, value, onChange, placeholder, required, error, rows = 3, action }: TextareaFieldProps) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
-        <span className="text-orange-400/60">{icon}</span>
-        {label}
-        {required && <span className="text-rose-400">*</span>}
-      </label>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs font-bold text-white/50">
+          <span className="text-orange-400/60">{icon}</span>
+          {label}
+          {required && <span className="text-rose-400">*</span>}
+        </label>
+        {action}
+      </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1726,6 +2030,8 @@ function EditServiceSelectionCard({
 
   const isServiceSelected = tenantServices.some(ts => ts.serviceId === service._id && !ts.modelId);
   const selectedModelsCount = tenantServices.filter(ts => ts.serviceId === service._id && ts.modelId).length;
+  const totalModelsCount = modelsQuery ? modelsQuery.length : 0;
+  const isAllModelsSelected = totalModelsCount > 0 && selectedModelsCount === totalModelsCount;
 
   const toggleService = () => {
     if (isServiceSelected) {
@@ -1740,7 +2046,61 @@ function EditServiceSelectionCard({
     if (isModelSelected) {
       setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && ts.modelId === modelId)));
     } else {
-      setTenantServices(prev => [...prev, { serviceId: service._id, modelId, price: 0, duration: 30 }]);
+      setTenantServices(prev => [...prev, {
+        serviceId: service._id,
+        modelId,
+        price: bulkPrice > 0 ? bulkPrice : 0,
+        duration: bulkDuration > 0 ? bulkDuration : 30
+      }]);
+    }
+  };
+
+  const toggleAllModels = () => {
+    if (!modelsQuery || modelsQuery.length === 0) return;
+    if (isAllModelsSelected) {
+      setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && ts.modelId)));
+    } else {
+      setTenantServices(prev => {
+        const next = [...prev];
+        modelsQuery.forEach((model: any) => {
+          const alreadyExists = next.some(ts => ts.serviceId === service._id && ts.modelId === model._id);
+          if (!alreadyExists) {
+            next.push({
+              serviceId: service._id,
+              modelId: model._id,
+              price: bulkPrice > 0 ? bulkPrice : 0,
+              duration: bulkDuration > 0 ? bulkDuration : 30,
+            });
+          }
+        });
+        return next;
+      });
+    }
+  };
+
+  const toggleGroupModels = (models: any[]) => {
+    if (!models || models.length === 0) return;
+    const groupModelIds = new Set(models.map(m => m._id));
+    const isAllGroupSelected = models.every(m => tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === m._id));
+
+    if (isAllGroupSelected) {
+      setTenantServices(prev => prev.filter(ts => !(ts.serviceId === service._id && ts.modelId && groupModelIds.has(ts.modelId))));
+    } else {
+      setTenantServices(prev => {
+        const next = [...prev];
+        models.forEach((model: any) => {
+          const alreadyExists = next.some(ts => ts.serviceId === service._id && ts.modelId === model._id);
+          if (!alreadyExists) {
+            next.push({
+              serviceId: service._id,
+              modelId: model._id,
+              price: bulkPrice > 0 ? bulkPrice : 0,
+              duration: bulkDuration > 0 ? bulkDuration : 30,
+            });
+          }
+        });
+        return next;
+      });
     }
   };
 
@@ -1803,7 +2163,7 @@ function EditServiceSelectionCard({
                 {selectedModelsCount > 0 ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-0.5 text-[11px] font-bold text-indigo-300">
                     <FiCheck className="text-[10px]" />
-                    {selectedModelsCount} مدل انتخاب شده
+                    {selectedModelsCount} از {totalModelsCount} مدل انتخاب شده
                   </span>
                 ) : (
                   <span className="text-xs text-white/35">برای انتخاب مدل‌ها کلیک کنید</span>
@@ -1894,15 +2254,40 @@ function EditServiceSelectionCard({
                   className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-white/5 transition"
                 />
               </div>
-              <button
-                type="button"
-                onClick={handleSyncModels}
-                disabled={selectedModelsCount === 0}
-                className="w-full sm:w-auto cursor-pointer flex items-center justify-center gap-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 shrink-0 h-[38px]"
-              >
-                <FiRefreshCw className="text-xs" />
-                <span>همگام‌سازی ({selectedModelsCount} مدل)</span>
-              </button>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleAllModels}
+                  className={`cursor-pointer flex items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all active:scale-95 h-[38px] border ${
+                    isAllModelsSelected
+                      ? "bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20"
+                      : "bg-white/5 text-white/80 border-white/10 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {isAllModelsSelected ? (
+                    <>
+                      <FiX className="text-xs text-rose-400" />
+                      <span>لغو انتخاب همه</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiCheck className="text-xs text-indigo-400" />
+                      <span>انتخاب همه ({totalModelsCount})</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncModels}
+                  disabled={selectedModelsCount === 0}
+                  className="cursor-pointer flex items-center justify-center gap-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 shrink-0 h-[38px]"
+                >
+                  <FiRefreshCw className="text-xs" />
+                  <span>همگام‌سازی ({selectedModelsCount})</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -1918,10 +2303,43 @@ function EditServiceSelectionCard({
               {Object.entries(groupedModels).map(([groupName, models]) => (
                 <div key={groupName} className="flex flex-col gap-3">
                   {/* Group header */}
-                  <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-400/80" />
-                    <h4 className="text-xs font-black text-indigo-300">{groupName}</h4>
-                    <span className="text-[10px] text-white/30 font-bold">({models.length} مدل)</span>
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-400/80" />
+                      <h4 className="text-xs font-black text-indigo-300">{groupName}</h4>
+                      <span className="text-[10px] text-white/30 font-bold">({models.length} مدل)</span>
+                    </div>
+
+                    {(() => {
+                      const isGroupAllSelected = models.every(m => tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === m._id));
+                      const groupSelectedCount = models.filter(m => tenantServices.some(ts => ts.serviceId === service._id && ts.modelId === m._id)).length;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroupModels(models)}
+                          className={`cursor-pointer flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition border ${
+                            isGroupAllSelected
+                              ? "bg-rose-500/10 text-rose-300 border-rose-500/20 hover:bg-rose-500/20"
+                              : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          {isGroupAllSelected ? (
+                            <>
+                              <FiX className="text-xs text-rose-400" />
+                              <span>لغو همه</span>
+                            </>
+                          ) : (
+                            <>
+                              <FiCheck className="text-xs text-indigo-400" />
+                              <span>
+                                انتخاب همه
+                                {groupSelectedCount > 0 ? ` (${groupSelectedCount}/${models.length})` : ""}
+                              </span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })()}
                   </div>
                   {/* Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
